@@ -24,6 +24,21 @@ public class MockProtocolSupports implements ProtocolSupports {
     public ProtocolSupport getProtocol(String protocol) {
         return new ProtocolSupport() {
             @Override
+            public String getId() {
+                return "mock";
+            }
+
+            @Override
+            public String getName() {
+                return "模拟协议";
+            }
+
+            @Override
+            public String getDescription() {
+                return "";
+            }
+
+            @Override
             public DeviceMessageCodec getMessageCodec() {
 
                 return new DeviceMessageCodec() {
