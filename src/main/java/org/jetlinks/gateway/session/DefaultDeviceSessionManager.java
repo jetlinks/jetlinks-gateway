@@ -1,15 +1,96 @@
 package org.jetlinks.gateway.session;
 
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
+import org.jetlinks.protocol.ProtocolSupports;
+import org.jetlinks.protocol.message.codec.EncodedMessage;
+import org.jetlinks.registry.api.DeviceMonitor;
+import org.jetlinks.registry.api.DeviceRegistry;
+
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.stream.Collectors;
 
 /**
  * @author zhouhao
  * @since 1.0.0
  */
+@Slf4j
 public class DefaultDeviceSessionManager implements DeviceSessionManager {
 
     private Map<String, DeviceClient> repository = new ConcurrentHashMap<>();
+
+    @Getter
+    @Setter
+    private DeviceRegistry deviceRegistry;
+
+    @Getter
+    @Setter
+    private DeviceMonitor deviceMonitor;
+
+    @Getter
+    @Setter
+    private ProtocolSupports protocolSupports;
+
+    @Getter
+    @Setter
+    private ScheduledExecutorService executorService;
+
+    @Getter
+    @Setter
+    private String serverId;
+
+    private Queue<Runnable> closeClientJobs = new LinkedBlockingQueue<>();
+
+    public void shutdown() {
+        deviceMonitor.reportDeviceCount(serverId, 0);
+        deviceMonitor.serverOffline(serverId);
+        new ArrayList<>(repository.values())
+                .stream()
+                .map(DeviceClient::getId)
+                .forEach(this::unregister);
+    }
+
+    public void init() {
+        //接收发往设备的消息
+        deviceRegistry.getMessageHandler()
+                .handleMessage(serverId, message -> {
+                    String deviceId = message.getDeviceId();
+                    DeviceClient client = repository.get(deviceId);
+                    if (client != null) {
+                        String protocol = deviceRegistry.getDevice(deviceId).getDeviceInfo().getProtocol();
+                        EncodedMessage encodedMessage = protocolSupports.getProtocol(protocol)
+                                .getMessageCodec()
+                                .encode(client.getTransport(), message);
+                        client.send(encodedMessage);
+                    } else {
+                        //设备不在当前节点
+                        log.warn("设备[{}]未链接服务器[{}]", deviceId, serverId);
+                    }
+                });
+        //每30秒检查一次设备连接情况
+        executorService.scheduleAtFixedRate(() -> {
+            List<String> notAliveClients = repository.values()
+                    .stream()
+                    .filter(client -> !client.isAlive())
+                    .map(DeviceClient::getId)
+                    .collect(Collectors.toList());
+            long closed = notAliveClients.size();
+
+            notAliveClients.forEach(this::unregister);
+            //提交监控
+            deviceMonitor.reportDeviceCount(serverId, repository.size());
+
+            log.debug("当前节点设备连接数量:{},本次检查失效设备数量:{},集群中总连接设备数量:{}",
+                    repository.size(), closed, deviceMonitor.getDeviceCount());
+
+            //执行任务
+            for (Runnable runnable = closeClientJobs.poll(); runnable != null; runnable = closeClientJobs.poll()) {
+                runnable.run();
+            }
+        }, 10, 30, TimeUnit.SECONDS);
+    }
 
     @Override
     public DeviceClient getClient(String clientId) {
@@ -18,13 +99,18 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
 
     @Override
     public DeviceClient register(DeviceClient deviceClient) {
+        deviceRegistry.getDevice(deviceClient.getClientId()).online(serverId, "-");
         return repository.put(deviceClient.getClientId(), deviceClient);
     }
 
     @Override
     public DeviceClient unregister(String clientId) {
-
-        return repository.remove(clientId);
+        deviceRegistry.getDevice(clientId).offline();
+        DeviceClient client = repository.remove(clientId);
+        if (null != client) {
+            closeClientJobs.add(client::close);
+        }
+        return client;
     }
 
 }
