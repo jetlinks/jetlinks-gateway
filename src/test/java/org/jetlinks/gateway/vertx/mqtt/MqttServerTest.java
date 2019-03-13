@@ -1,8 +1,10 @@
 package org.jetlinks.gateway.vertx.mqtt;
 
+import io.netty.buffer.Unpooled;
 import io.vertx.core.Vertx;
 import io.vertx.mqtt.MqttServerOptions;
 import org.jetlinks.gateway.session.DefaultDeviceSessionManager;
+import org.jetlinks.protocol.message.codec.EncodedMessage;
 import org.jetlinks.registry.api.*;
 import org.jetlinks.registry.redis.RedissonDeviceMessageHandler;
 import org.jetlinks.registry.redis.RedissonDeviceRegistry;
@@ -39,6 +41,8 @@ public class MqttServerTest {
         server.setMqttServerOptions(new MqttServerOptions());
         server.setMessageConsumer(msg -> {
             System.out.println("收到消息:" + msg.toJson());
+            server.getDeviceSessionManager().getClient(deviceInfo.getId())
+                    .send(EncodedMessage.mqtt(deviceInfo.getId(), "test", Unpooled.copiedBuffer("msg".getBytes())));
         });
 
         server.setProtocolSupports(new MockProtocolSupports());

@@ -8,6 +8,8 @@ import org.jetlinks.gateway.session.DeviceClient;
 import org.jetlinks.protocol.message.codec.EncodedMessage;
 import org.jetlinks.protocol.message.codec.MqttMessage;
 
+import java.nio.charset.StandardCharsets;
+
 /**
  * @author zhouhao
  * @since 1.1.0
@@ -60,9 +62,11 @@ public class MqttClient implements DeviceClient {
         if (encodedMessage instanceof MqttMessage) {
             MqttMessage message = ((MqttMessage) encodedMessage);
             ping();
-            endpoint.publish(message.getTopic(),
-                    Buffer.buffer(message.getBytes()),
-                    MqttQoS.AT_MOST_ONCE, false, false);
+            Buffer buffer = Buffer.buffer(message.getByteBuf());
+            if (log.isDebugEnabled()) {
+                log.debug("发送消息到客户端[{}]=>[{}]:{}", message.getTopic(), getClientId(), buffer.toString(StandardCharsets.UTF_8));
+            }
+            endpoint.publish(message.getTopic(), buffer, MqttQoS.AT_MOST_ONCE, false, false);
         } else {
             log.error("不支持发送消息{}到mqtt:", encodedMessage);
         }

@@ -175,7 +175,7 @@ public class MqttServer extends AbstractVerticle {
                             //转换消息
                             DeviceMessage deviceMessage = protocolSupport
                                     .getMessageConverter()
-                                    .convert(EncodedMessage.mqtt(clientId, topicName, buffer.getBytes()));
+                                    .convert(EncodedMessage.mqtt(clientId, topicName, buffer.getByteBuf()));
                             if (messageConsumer != null) {
                                 messageConsumer.accept(deviceMessage);
                             }
