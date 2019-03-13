@@ -12,6 +12,4 @@ public interface DeviceSessionManager {
 
     DeviceClient unregister(String clientId);
 
-    DeviceSession getSession(String sessionId);
-
 }

@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.jetlinks.gateway.session.DeviceClient;
 import org.jetlinks.protocol.message.codec.EncodedMessage;
 import org.jetlinks.protocol.message.codec.MqttMessage;
+import org.jetlinks.protocol.message.codec.Transport;
 
 import java.nio.charset.StandardCharsets;
 
@@ -58,6 +59,11 @@ public class MqttClient implements DeviceClient {
     }
 
     @Override
+    public Transport getTransport() {
+        return Transport.MQTT;
+    }
+
+    @Override
     public void send(EncodedMessage encodedMessage) {
         if (encodedMessage instanceof MqttMessage) {
             MqttMessage message = ((MqttMessage) encodedMessage);
@@ -68,7 +74,7 @@ public class MqttClient implements DeviceClient {
             }
             endpoint.publish(message.getTopic(), buffer, MqttQoS.AT_MOST_ONCE, false, false);
         } else {
-            log.error("不支持发送消息{}到mqtt:", encodedMessage);
+            log.error("不支持发送消息{}到MQTT:", encodedMessage);
         }
     }
 

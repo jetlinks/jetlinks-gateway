@@ -16,6 +16,7 @@ import org.jetlinks.protocol.ProtocolSupport;
 import org.jetlinks.protocol.ProtocolSupports;
 import org.jetlinks.protocol.message.codec.EncodedMessage;
 import org.jetlinks.protocol.message.DeviceMessage;
+import org.jetlinks.protocol.message.codec.Transport;
 import org.jetlinks.registry.api.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -174,8 +175,8 @@ public class MqttServer extends AbstractVerticle {
                             ProtocolSupport protocolSupport = getProtocol(protocol);
                             //转换消息
                             DeviceMessage deviceMessage = protocolSupport
-                                    .getMessageConverter()
-                                    .convert(EncodedMessage.mqtt(clientId, topicName, buffer.getByteBuf()));
+                                    .getMessageCodec()
+                                    .decode(Transport.MQTT, EncodedMessage.mqtt(clientId, topicName, buffer.getByteBuf()));
                             if (messageConsumer != null) {
                                 messageConsumer.accept(deviceMessage);
                             }

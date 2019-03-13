@@ -27,9 +27,4 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
         return repository.remove(clientId);
     }
 
-    @Override
-    public DeviceSession getSession(String sessionId) {
-
-        return null;
-    }
 }
