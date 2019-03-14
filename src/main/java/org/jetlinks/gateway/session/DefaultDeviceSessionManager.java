@@ -23,7 +23,11 @@ import java.util.stream.Collectors;
 @Slf4j
 public class DefaultDeviceSessionManager implements DeviceSessionManager {
 
-    private Map<String, DeviceClient> repository = new ConcurrentHashMap<>();
+    private Map<String, DeviceClient> repository = new ConcurrentHashMap<>(256);
+
+    @Getter
+    @Setter
+    private String serverId;
 
     @Getter
     @Setter
@@ -40,10 +44,6 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
     @Getter
     @Setter
     private ScheduledExecutorService executorService;
-
-    @Getter
-    @Setter
-    private String serverId;
 
     private Queue<Runnable> closeClientJobs = new LinkedBlockingQueue<>();
 
@@ -65,6 +65,7 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
                     if (client != null) {
                         DeviceOperation operation = deviceRegistry.getDevice(deviceId);
                         String protocol = operation.getDeviceInfo().getProtocol();
+                        //获取协议并转码
                         EncodedMessage encodedMessage = protocolSupports.getProtocol(protocol)
                                 .getMessageCodec()
                                 .encode(client.getTransport(), new MessageEncodeContext() {
@@ -78,10 +79,11 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
                                         return operation.getMetadata();
                                     }
                                 });
+                        //发往设备
                         client.send(encodedMessage);
                     } else {
-                        //设备不在当前节点
-                        log.warn("设备[{}]未链接服务器[{}]", deviceId, serverId);
+                        //设备不在当前服务器节点
+                        log.warn("设备[{}]未链接服务器[{}],无法发送消息:{}", deviceId, serverId, message.toJson());
                     }
                 });
         //每30秒检查一次设备连接情况
@@ -114,11 +116,14 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
 
     @Override
     public DeviceClient register(DeviceClient deviceClient) {
+        DeviceClient old = repository.put(deviceClient.getClientId(), deviceClient);
+        if (null != old) {
+            old.close();
+        }
         deviceRegistry
                 .getDevice(deviceClient.getClientId())
                 .online(serverId, "-");
-
-        return repository.put(deviceClient.getClientId(), deviceClient);
+        return old;
     }
 
     @Override

@@ -14,6 +14,8 @@ import org.jetlinks.gateway.session.DeviceClient;
 import org.jetlinks.gateway.session.DeviceSessionManager;
 import org.jetlinks.protocol.ProtocolSupport;
 import org.jetlinks.protocol.ProtocolSupports;
+import org.jetlinks.protocol.message.CommonDeviceMessage;
+import org.jetlinks.protocol.message.CommonDeviceMessageReply;
 import org.jetlinks.protocol.message.codec.EncodedMessage;
 import org.jetlinks.protocol.message.DeviceMessage;
 import org.jetlinks.protocol.message.codec.FromDeviceMessageContext;
@@ -26,6 +28,7 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 /**
@@ -48,15 +51,11 @@ public class MqttServer extends AbstractVerticle {
 
     @Getter
     @Setter
-    private Vertx vertx;
-
-    @Getter
-    @Setter
     private DeviceSessionManager deviceSessionManager;
 
     @Getter
     @Setter
-    private Consumer<DeviceMessage> messageConsumer;
+    private BiConsumer<DeviceClient, DeviceMessage> messageConsumer;
 
     @Getter
     @Setter
@@ -200,9 +199,7 @@ public class MqttServer extends AbstractVerticle {
                                             return operation.getMetadata();
                                         }
                                     });
-                            if (messageConsumer != null) {
-                                messageConsumer.accept(deviceMessage);
-                            }
+                            messageConsumer.accept(client, deviceMessage);
                         } catch (Throwable e) {
                             logger.error("处理设备[{}]消息[{}]:\n{}\n失败", clientId, topicName, buffer.toString(), e);
                         } finally {

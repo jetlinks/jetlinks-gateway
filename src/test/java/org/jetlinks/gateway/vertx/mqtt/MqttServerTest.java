@@ -1,8 +1,10 @@
 package org.jetlinks.gateway.vertx.mqtt;
 
 import io.netty.buffer.Unpooled;
+import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
+import io.vertx.mqtt.MqttClient;
 import io.vertx.mqtt.MqttServerOptions;
 import org.jetlinks.gateway.session.DefaultDeviceSessionManager;
 import org.jetlinks.gateway.session.DeviceSessionManager;
@@ -42,18 +44,20 @@ public class MqttServerTest {
         deviceInfo.setType((byte) 1);
         registry.registry(deviceInfo);
 
-        DefaultDeviceSessionManager deviceSessionManager=new DefaultDeviceSessionManager();
+        DefaultDeviceSessionManager deviceSessionManager = new DefaultDeviceSessionManager();
         deviceSessionManager.setDeviceMonitor(new RedissonDeviceMonitor(client));
         deviceSessionManager.setExecutorService(Executors.newScheduledThreadPool(2));
         deviceSessionManager.setDeviceRegistry(registry);
         deviceSessionManager.setServerId("test");
         deviceSessionManager.setProtocolSupports(protocolSupports);
+        MqttServerOptions mqttServerOptions = new MqttServerOptions();
+
+        mqttServerOptions.setPort(1884);
 
         MqttServer server = new MqttServer();
-        server.setVertx(vertx);
         server.setDeviceSessionManager(deviceSessionManager);
-        server.setMqttServerOptions(new MqttServerOptions());
-        server.setMessageConsumer(msg -> {
+        server.setMqttServerOptions(mqttServerOptions);
+        server.setMessageConsumer((c, msg) -> {
             System.out.println("收到消息:" + msg.toJson());
             server.getDeviceSessionManager().getClient(deviceInfo.getId())
                     .send(EncodedMessage.mqtt(deviceInfo.getId(), "test", Unpooled.copiedBuffer("msg".getBytes())));
@@ -61,8 +65,7 @@ public class MqttServerTest {
 
         server.setProtocolSupports(protocolSupports);
         server.setRegistry(registry);
-        server.start();
-
+        vertx.deployVerticle(server);
     }
 
 }
