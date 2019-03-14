@@ -7,9 +7,7 @@ import org.jetlinks.protocol.ProtocolSupport;
 import org.jetlinks.protocol.ProtocolSupports;
 import org.jetlinks.protocol.message.CommonDeviceMessageReply;
 import org.jetlinks.protocol.message.DeviceMessage;
-import org.jetlinks.protocol.message.codec.DeviceMessageCodec;
-import org.jetlinks.protocol.message.codec.EncodedMessage;
-import org.jetlinks.protocol.message.codec.Transport;
+import org.jetlinks.protocol.message.codec.*;
 import org.jetlinks.protocol.message.property.ReadPropertyMessageReply;
 import org.jetlinks.protocol.metadata.DeviceMetadataCodec;
 
@@ -43,17 +41,25 @@ public class MockProtocolSupports implements ProtocolSupports {
 
                 return new DeviceMessageCodec() {
                     @Override
-                    public EncodedMessage encode(Transport transport, DeviceMessage deviceMessage) {
-                        return EncodedMessage.mqtt(deviceMessage.getDeviceId(), "command",
-                                Unpooled.copiedBuffer(deviceMessage.toJson().toJSONString().getBytes()));
+                    public EncodedMessage encode(Transport transport, MessageEncodeContext context) {
+                        return EncodedMessage.mqtt(context.getMessage().getDeviceId(), "command",
+                                Unpooled.copiedBuffer(context.getMessage().toJson().toJSONString().getBytes()));
                     }
 
                     @Override
-                    public DeviceMessage decode(Transport transport, EncodedMessage message) {
-                        JSONObject jsonObject = JSON.parseObject(message.getByteBuf().toString(StandardCharsets.UTF_8));
+                    public DeviceMessage decode(Transport transport, MessageDecodeContext context) {
+                        JSONObject jsonObject = JSON.parseObject(context.getMessage().getByteBuf().toString(StandardCharsets.UTF_8));
+                        //回复确认收到
+                        if (context instanceof FromDeviceMessageContext) {
+                            ((FromDeviceMessageContext) context).sendToDevice(
+                                    EncodedMessage.mqtt(context.getMessage().getDeviceId(), "ack",
+                                            Unpooled.copiedBuffer(context.getMessage().getByteBuf()))
+                            );
+                        }
                         if ("read-property".equals(jsonObject.get("type"))) {
                             return jsonObject.toJavaObject(ReadPropertyMessageReply.class);
                         }
+
                         return jsonObject.toJavaObject(CommonDeviceMessageReply.class);
                     }
                 };

@@ -2,11 +2,15 @@ package org.jetlinks.gateway.vertx.mqtt;
 
 import io.netty.buffer.Unpooled;
 import io.vertx.core.Vertx;
+import io.vertx.core.VertxOptions;
 import io.vertx.mqtt.MqttServerOptions;
 import org.jetlinks.gateway.session.DefaultDeviceSessionManager;
+import org.jetlinks.gateway.session.DeviceSessionManager;
+import org.jetlinks.protocol.ProtocolSupports;
 import org.jetlinks.protocol.message.codec.EncodedMessage;
 import org.jetlinks.registry.api.*;
 import org.jetlinks.registry.redis.RedissonDeviceMessageHandler;
+import org.jetlinks.registry.redis.RedissonDeviceMonitor;
 import org.jetlinks.registry.redis.RedissonDeviceRegistry;
 import org.redisson.api.RedissonClient;
 
@@ -25,9 +29,12 @@ public class MqttServerTest {
         Vertx vertx = Vertx.vertx();
         RedissonClient client = RedissonHelper.newRedissonClient();
 
+        ProtocolSupports protocolSupports = new MockProtocolSupports();
+
         ExecutorService executorService = Executors.newFixedThreadPool(2);
         DeviceRegistry registry = new RedissonDeviceRegistry(client,
                 (request, deviceOperation) -> AuthenticationResponse.success(),
+                protocolSupports,
                 executorService);
         DeviceInfo deviceInfo = new DeviceInfo();
 
@@ -35,9 +42,16 @@ public class MqttServerTest {
         deviceInfo.setType((byte) 1);
         registry.registry(deviceInfo);
 
+        DefaultDeviceSessionManager deviceSessionManager=new DefaultDeviceSessionManager();
+        deviceSessionManager.setDeviceMonitor(new RedissonDeviceMonitor(client));
+        deviceSessionManager.setExecutorService(Executors.newScheduledThreadPool(2));
+        deviceSessionManager.setDeviceRegistry(registry);
+        deviceSessionManager.setServerId("test");
+        deviceSessionManager.setProtocolSupports(protocolSupports);
+
         MqttServer server = new MqttServer();
         server.setVertx(vertx);
-        server.setDeviceSessionManager(new DefaultDeviceSessionManager());
+        server.setDeviceSessionManager(deviceSessionManager);
         server.setMqttServerOptions(new MqttServerOptions());
         server.setMessageConsumer(msg -> {
             System.out.println("收到消息:" + msg.toJson());
@@ -45,7 +59,7 @@ public class MqttServerTest {
                     .send(EncodedMessage.mqtt(deviceInfo.getId(), "test", Unpooled.copiedBuffer("msg".getBytes())));
         });
 
-        server.setProtocolSupports(new MockProtocolSupports());
+        server.setProtocolSupports(protocolSupports);
         server.setRegistry(registry);
         server.start();
 

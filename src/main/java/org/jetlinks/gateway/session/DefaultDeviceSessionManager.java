@@ -4,8 +4,12 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.jetlinks.protocol.ProtocolSupports;
+import org.jetlinks.protocol.message.DeviceMessage;
 import org.jetlinks.protocol.message.codec.EncodedMessage;
+import org.jetlinks.protocol.message.codec.MessageEncodeContext;
+import org.jetlinks.protocol.metadata.DeviceMetadata;
 import org.jetlinks.registry.api.DeviceMonitor;
+import org.jetlinks.registry.api.DeviceOperation;
 import org.jetlinks.registry.api.DeviceRegistry;
 
 import java.util.*;
@@ -59,10 +63,21 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
                     String deviceId = message.getDeviceId();
                     DeviceClient client = repository.get(deviceId);
                     if (client != null) {
-                        String protocol = deviceRegistry.getDevice(deviceId).getDeviceInfo().getProtocol();
+                        DeviceOperation operation = deviceRegistry.getDevice(deviceId);
+                        String protocol = operation.getDeviceInfo().getProtocol();
                         EncodedMessage encodedMessage = protocolSupports.getProtocol(protocol)
                                 .getMessageCodec()
-                                .encode(client.getTransport(), message);
+                                .encode(client.getTransport(), new MessageEncodeContext() {
+                                    @Override
+                                    public DeviceMessage getMessage() {
+                                        return message;
+                                    }
+
+                                    @Override
+                                    public DeviceMetadata getDeviceMetadata() {
+                                        return operation.getMetadata();
+                                    }
+                                });
                         client.send(encodedMessage);
                     } else {
                         //设备不在当前节点
@@ -99,7 +114,10 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
 
     @Override
     public DeviceClient register(DeviceClient deviceClient) {
-        deviceRegistry.getDevice(deviceClient.getClientId()).online(serverId, "-");
+        deviceRegistry
+                .getDevice(deviceClient.getClientId())
+                .online(serverId, "-");
+
         return repository.put(deviceClient.getClientId(), deviceClient);
     }
 

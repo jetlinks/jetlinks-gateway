@@ -16,7 +16,9 @@ import org.jetlinks.protocol.ProtocolSupport;
 import org.jetlinks.protocol.ProtocolSupports;
 import org.jetlinks.protocol.message.codec.EncodedMessage;
 import org.jetlinks.protocol.message.DeviceMessage;
+import org.jetlinks.protocol.message.codec.FromDeviceMessageContext;
 import org.jetlinks.protocol.message.codec.Transport;
+import org.jetlinks.protocol.metadata.DeviceMetadata;
 import org.jetlinks.registry.api.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -102,8 +104,10 @@ public class MqttServer extends AbstractVerticle {
         if (200 == response.getCode()) {
             accept(endpoint);
         } else if (401 == response.getCode()) {
+            logger.debug("设备[{}]认证未通过", clientId, response);
             endpoint.reject(MqttConnectReturnCode.CONNECTION_REFUSED_BAD_USER_NAME_OR_PASSWORD);
         } else {
+            logger.warn("设备[{}]认证失败", clientId, response);
             endpoint.reject(MqttConnectReturnCode.CONNECTION_REFUSED_SERVER_UNAVAILABLE);
         }
     }
@@ -115,6 +119,8 @@ public class MqttServer extends AbstractVerticle {
         if (old == null) {
             if (client.isConnected()) {
                 client.close();
+            } else {
+                client.reject(MqttConnectReturnCode.CONNECTION_REFUSED_SERVER_UNAVAILABLE);
             }
         }
     }
@@ -125,11 +131,11 @@ public class MqttServer extends AbstractVerticle {
 
     protected void accept(MqttEndpoint endpoint) {
         String clientId = endpoint.clientIdentifier();
-        MqttClient client = new MqttClient(endpoint);
-        //注册
-        deviceSessionManager.register(client);
-        logger.info("MQTT客户端[{}]建立链接", clientId);
         try {
+            MqttClient client = new MqttClient(endpoint);
+            //注册
+            deviceSessionManager.register(client);
+            logger.info("MQTT客户端[{}]建立链接", clientId);
             endpoint
                     .closeHandler(v -> doCloseEndpoint(endpoint))
                     .subscribeHandler(subscribe -> {
@@ -173,10 +179,27 @@ public class MqttServer extends AbstractVerticle {
                             //消息协议
                             String protocol = operation.getDeviceInfo().getProtocol();
                             ProtocolSupport protocolSupport = getProtocol(protocol);
+                            EncodedMessage encodedMessage = EncodedMessage.mqtt(clientId, topicName, buffer.getByteBuf());
+
                             //转换消息
                             DeviceMessage deviceMessage = protocolSupport
                                     .getMessageCodec()
-                                    .decode(Transport.MQTT, EncodedMessage.mqtt(clientId, topicName, buffer.getByteBuf()));
+                                    .decode(Transport.MQTT, new FromDeviceMessageContext() {
+                                        @Override
+                                        public void sendToDevice(EncodedMessage message) {
+                                            client.send(message);
+                                        }
+
+                                        @Override
+                                        public EncodedMessage getMessage() {
+                                            return encodedMessage;
+                                        }
+
+                                        @Override
+                                        public DeviceMetadata getDeviceMetadata() {
+                                            return operation.getMetadata();
+                                        }
+                                    });
                             if (messageConsumer != null) {
                                 messageConsumer.accept(deviceMessage);
                             }
