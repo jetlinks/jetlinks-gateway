@@ -8,6 +8,8 @@ import org.jetlinks.protocol.ProtocolSupports;
 import org.jetlinks.protocol.message.CommonDeviceMessageReply;
 import org.jetlinks.protocol.message.DeviceMessage;
 import org.jetlinks.protocol.message.codec.*;
+import org.jetlinks.protocol.message.function.FunctionInvokeMessage;
+import org.jetlinks.protocol.message.property.ReadPropertyMessage;
 import org.jetlinks.protocol.message.property.ReadPropertyMessageReply;
 import org.jetlinks.protocol.metadata.DeviceMetadataCodec;
 
@@ -42,8 +44,17 @@ public class MockProtocolSupports implements ProtocolSupports {
                 return new DeviceMessageCodec() {
                     @Override
                     public EncodedMessage encode(Transport transport, MessageEncodeContext context) {
-                        return EncodedMessage.mqtt(context.getMessage().getDeviceId(), "command",
-                                Unpooled.copiedBuffer(context.getMessage().toJson().toJSONString().getBytes()));
+                        if(transport==Transport.MQTT) {
+                            if(context.getMessage() instanceof FunctionInvokeMessage){
+                                FunctionInvokeMessage readPropertyMessage=(FunctionInvokeMessage)context.getMessage();
+
+                                return EncodedMessage.mqtt(context.getMessage().getDeviceId(), "/key/func-invoke/"+readPropertyMessage.getFunctionId(),
+                                        Unpooled.copiedBuffer(context.getMessage().toJson().toJSONString().getBytes()));
+                            }
+                            return EncodedMessage.mqtt(context.getMessage().getDeviceId(), "/key/xxxx/command",
+                                    Unpooled.copiedBuffer(context.getMessage().toJson().toJSONString().getBytes()));
+                        }
+                        throw new UnsupportedOperationException();
                     }
 
                     @Override

@@ -57,10 +57,10 @@ public class MqttServerTest {
         MqttServer server = new MqttServer();
         server.setDeviceSessionManager(deviceSessionManager);
         server.setMqttServerOptions(mqttServerOptions);
-        server.setMessageConsumer((c, msg) -> {
+        server.setMessageConsumer((deviceClient, msg) -> {
             System.out.println("收到消息:" + msg.toJson());
-            server.getDeviceSessionManager().getClient(deviceInfo.getId())
-                    .send(EncodedMessage.mqtt(deviceInfo.getId(), "test", Unpooled.copiedBuffer("msg".getBytes())));
+
+            deviceClient.send(EncodedMessage.mqtt(deviceInfo.getId(), "test", Unpooled.copiedBuffer("msg".getBytes())));
         });
 
         server.setProtocolSupports(protocolSupports);
