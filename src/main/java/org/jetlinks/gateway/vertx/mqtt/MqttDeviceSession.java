@@ -4,7 +4,7 @@ import io.netty.handler.codec.mqtt.MqttQoS;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.mqtt.MqttEndpoint;
 import lombok.extern.slf4j.Slf4j;
-import org.jetlinks.gateway.session.DeviceClient;
+import org.jetlinks.gateway.session.DeviceSession;
 import org.jetlinks.protocol.message.codec.EncodedMessage;
 import org.jetlinks.protocol.message.codec.MqttMessage;
 import org.jetlinks.protocol.message.codec.Transport;
@@ -16,7 +16,7 @@ import java.nio.charset.StandardCharsets;
  * @since 1.1.0
  */
 @Slf4j
-public class MqttClient implements DeviceClient {
+public class MqttDeviceSession implements DeviceSession {
 
     private MqttEndpoint endpoint;
 
@@ -24,7 +24,7 @@ public class MqttClient implements DeviceClient {
 
     private volatile long lastPingTime = System.currentTimeMillis();
 
-    public MqttClient(MqttEndpoint endpoint) {
+    public MqttDeviceSession(MqttEndpoint endpoint) {
         endpoint.pingHandler(r -> ping());
         this.endpoint = endpoint;
     }
@@ -36,11 +36,11 @@ public class MqttClient implements DeviceClient {
 
     @Override
     public String getId() {
-        return getClientId();
+        return getDeviceId();
     }
 
     @Override
-    public String getClientId() {
+    public String getDeviceId() {
         return endpoint.clientIdentifier();
     }
 
@@ -70,7 +70,7 @@ public class MqttClient implements DeviceClient {
             ping();
             Buffer buffer = Buffer.buffer(message.getByteBuf());
             if (log.isDebugEnabled()) {
-                log.debug("发送消息到客户端[{}]=>[{}]:{}", message.getTopic(), getClientId(), buffer.toString(StandardCharsets.UTF_8));
+                log.debug("发送消息到客户端[{}]=>[{}]:{}", message.getTopic(), getDeviceId(), buffer.toString(StandardCharsets.UTF_8));
             }
             endpoint.publish(message.getTopic(), buffer, MqttQoS.AT_MOST_ONCE, false, false);
         } else {
@@ -80,7 +80,7 @@ public class MqttClient implements DeviceClient {
 
     @Override
     public void ping() {
-        log.debug("mqtt client[{}] ping", getClientId());
+        log.debug("mqtt client[{}] ping", getDeviceId());
         lastPingTime = System.currentTimeMillis();
     }
 
@@ -91,6 +91,6 @@ public class MqttClient implements DeviceClient {
 
     @Override
     public String toString() {
-        return "MQTT Client[" + getClientId() + "]";
+        return "MQTT Client[" + getDeviceId() + "]";
     }
 }

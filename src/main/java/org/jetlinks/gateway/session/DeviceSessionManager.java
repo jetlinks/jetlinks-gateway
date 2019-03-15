@@ -6,10 +6,10 @@ package org.jetlinks.gateway.session;
  */
 public interface DeviceSessionManager {
 
-    DeviceClient getClient(String clientId);
+    DeviceSession getSession(String idOrDeviceId);
 
-    DeviceClient register(DeviceClient deviceClient);
+    DeviceSession register(DeviceSession deviceClient);
 
-    DeviceClient unregister(String clientId);
+    DeviceSession unregister(String idOrDeviceId);
 
 }

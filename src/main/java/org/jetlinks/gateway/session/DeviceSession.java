@@ -1,16 +1,28 @@
 package org.jetlinks.gateway.session;
 
-import lombok.Getter;
-import lombok.Setter;
+import org.jetlinks.protocol.message.codec.EncodedMessage;
+import org.jetlinks.protocol.message.codec.Transport;
 
 /**
  * @author zhouhao
  * @since 1.0.0
  */
-@Getter
-@Setter
-public class DeviceSession {
-    private String sessionId;
+public interface DeviceSession {
+    String getId();
 
-    private String creatorDeviceId;
+    String getDeviceId();
+
+    long lastPingTime();
+
+    long connectTime();
+
+    void send(EncodedMessage encodedMessage);
+
+    Transport getTransport();
+
+    void close();
+
+    void ping();
+
+    boolean isAlive();
 }
