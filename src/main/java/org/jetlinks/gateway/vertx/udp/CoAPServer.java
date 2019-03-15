@@ -45,6 +45,7 @@ public abstract class CoAPServer extends UDPServer {
     }
 
     protected void handleCoAPMessage(SocketAddress address, CoapPacket packet) {
+        log.error("接受到CoAP消息:{}", address.host(), address.port(), packet.toString(true, false, true, false));
         DeviceOperation deviceOperation = getDevice(address, packet);
         if (deviceOperation != null) {
             DeviceInfo deviceInfo = deviceOperation.getDeviceInfo();
@@ -52,14 +53,14 @@ public abstract class CoAPServer extends UDPServer {
             CoAPMessage coapMessage = new CoAPMessage(deviceInfo.getId(), packet);
             protocolSupports.getProtocol(protocol)
                     .getMessageCodec()
-                    .decode(Transport.Coap, new FromDeviceMessageContext() {
+                    .decode(Transport.CoAP, new FromDeviceMessageContext() {
                         @Override
                         public void sendToDevice(EncodedMessage message) {
                             socket.send(Buffer.buffer(message.getByteBuf()), address.port(), host, result -> {
                                 if (!result.succeeded()) {
                                     log.error("发送CoAP消息失败:{}", message.toString(), result.cause());
                                 } else if (log.isDebugEnabled()) {
-                                    log.info("发送CoAP消息成功:{}", message.toString());
+                                    log.debug("发送CoAP消息成功:{}", message.toString());
                                 }
                             });
                         }
