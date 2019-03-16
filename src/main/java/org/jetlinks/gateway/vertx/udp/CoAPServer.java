@@ -15,8 +15,6 @@ import org.jetlinks.protocol.metadata.DeviceMetadata;
 import org.jetlinks.registry.api.DeviceInfo;
 import org.jetlinks.registry.api.DeviceOperation;
 
-import java.net.InetSocketAddress;
-
 /**
  * @author zhouhao
  * @since 1.0.0
@@ -29,7 +27,7 @@ public abstract class CoAPServer extends UDPServer {
         SocketAddress sender = packet.sender();
         Buffer buffer = packet.data();
         try {
-            CoapPacket coapPacket = CoapPacket.deserialize(new InetSocketAddress(sender.host(), sender.port()), new ByteBufInputStream(buffer.getByteBuf()));
+            CoapPacket coapPacket = CoapPacket.deserialize(new ByteBufInputStream(buffer.getByteBuf()));
             handleCoAPMessage(sender, coapPacket);
         } catch (CoapException e) {
             log.error("解析CoAP[{}:{}]消息失败:{}", sender.host(), sender.port(), buffer.toString(), e);
