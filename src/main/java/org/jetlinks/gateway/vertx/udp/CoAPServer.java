@@ -43,7 +43,7 @@ public abstract class CoAPServer extends UDPServer {
     }
 
     protected void handleCoAPMessage(SocketAddress address, CoapPacket packet) {
-        log.error("接受到CoAP消息:{}", address.host(), address.port(), packet.toString(true, false, true, false));
+        log.info("接受到CoAP消息:{}", address.host(), address.port(), packet.toString(true, false, true, false));
         DeviceOperation deviceOperation = getDevice(address, packet);
         if (deviceOperation != null) {
             DeviceInfo deviceInfo = deviceOperation.getDeviceInfo();
