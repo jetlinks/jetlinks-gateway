@@ -80,7 +80,7 @@ public class MqttDeviceSession implements DeviceSession {
 
     @Override
     public void ping() {
-        log.debug("mqtt client[{}] ping", getDeviceId());
+//        log.info("mqtt client[{}] ping", getDeviceId());
         lastPingTime = System.currentTimeMillis();
     }
 
