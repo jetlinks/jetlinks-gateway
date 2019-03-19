@@ -98,7 +98,10 @@ public class MqttServer extends AbstractVerticle {
         ));
         //授权通过
         if (response.isSuccess()) {
-            accept(endpoint);
+            String protocol = operation.getDeviceInfo().getProtocol();
+            ProtocolSupport protocolSupport = getProtocol(protocol);
+            MqttDeviceSession session = new MqttDeviceSession(endpoint, operation, protocolSupport);
+            accept(endpoint, session);
         } else if (401 == response.getCode()) {
             logger.debug("设备[{}]认证未通过", clientId, response);
             endpoint.reject(MqttConnectReturnCode.CONNECTION_REFUSED_BAD_USER_NAME_OR_PASSWORD);
@@ -125,10 +128,9 @@ public class MqttServer extends AbstractVerticle {
         return protocolSupports.getProtocol(protocol);
     }
 
-    protected void accept(MqttEndpoint endpoint) {
+    protected void accept(MqttEndpoint endpoint, MqttDeviceSession session) {
         String clientId = endpoint.clientIdentifier();
         try {
-            MqttDeviceSession session = new MqttDeviceSession(endpoint);
             //注册
             deviceSessionManager.register(session);
             logger.info("MQTT客户端[{}]建立链接", clientId);
@@ -137,24 +139,14 @@ public class MqttServer extends AbstractVerticle {
                     .subscribeHandler(subscribe -> {
                         List<MqttQoS> grantedQosLevels = new ArrayList<>();
                         for (MqttTopicSubscription s : subscribe.topicSubscriptions()) {
-//                            logger.info("[{}] Subscription for {} with QoS {}", clientId, s.topicName(), s.qualityOfService());
                             grantedQosLevels.add(s.qualityOfService());
                         }
-                        // ack the subscriptions request
                         endpoint.subscribeAcknowledge(subscribe.messageId(), grantedQosLevels);
-
-                        // specifing handlers for handling QoS 1 and 2
                         endpoint.publishAcknowledgeHandler(messageId -> logger.info("[{}] Received ack for message = {}", clientId, messageId))
                                 .publishReceivedHandler(endpoint::publishRelease)
                                 .publishCompletionHandler(messageId -> logger.info("[{}] Received ack for message = {}", clientId, messageId));
                     })
-                    .unsubscribeHandler(unsubscribe -> {
-                        for (String t : unsubscribe.topics()) {
-                            logger.info("[{}] Unsubscription for {}", clientId, t);
-                        }
-                        // ack the subscriptions request
-                        endpoint.unsubscribeAcknowledge(unsubscribe.messageId());
-                    })
+                    .unsubscribeHandler(unsubscribe -> endpoint.unsubscribeAcknowledge(unsubscribe.messageId()))
                     .disconnectHandler(v -> {
                         logger.info("MQTT客户端[{}]断开链接", clientId);
                         doCloseEndpoint(endpoint);
@@ -171,13 +163,10 @@ public class MqttServer extends AbstractVerticle {
                             logger.debug("收到设备[{}]消息:{}", clientId, buffer.toString());
                         }
                         try {
-                            DeviceOperation operation = registry.getDevice(clientId);
                             //消息协议
-                            String protocol = operation.getDeviceInfo().getProtocol();
-                            ProtocolSupport protocolSupport = getProtocol(protocol);
                             EncodedMessage encodedMessage = EncodedMessage.mqtt(clientId, topicName, buffer.getByteBuf());
                             //转换消息
-                            DeviceMessage deviceMessage = protocolSupport
+                            DeviceMessage deviceMessage = session.getProtocolSupport()
                                     .getMessageCodec()
                                     .decode(Transport.MQTT, new FromDeviceMessageContext() {
                                         @Override
@@ -197,7 +186,7 @@ public class MqttServer extends AbstractVerticle {
 
                                         @Override
                                         public DeviceMetadata getDeviceMetadata() {
-                                            return operation.getMetadata();
+                                            return session.getOperation().getMetadata();
                                         }
                                     });
                             if (!(deviceMessage instanceof EmptyDeviceMessage)) {

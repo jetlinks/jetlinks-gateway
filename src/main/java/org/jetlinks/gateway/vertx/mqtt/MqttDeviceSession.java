@@ -3,30 +3,42 @@ package org.jetlinks.gateway.vertx.mqtt;
 import io.netty.handler.codec.mqtt.MqttQoS;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.mqtt.MqttEndpoint;
+import lombok.Getter;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.jetlinks.gateway.session.DeviceSession;
+import org.jetlinks.protocol.ProtocolSupport;
 import org.jetlinks.protocol.message.codec.EncodedMessage;
 import org.jetlinks.protocol.message.codec.MqttMessage;
 import org.jetlinks.protocol.message.codec.Transport;
+import org.jetlinks.registry.api.DeviceOperation;
 
 import java.nio.charset.StandardCharsets;
 
 /**
  * @author zhouhao
- * @since 1.1.0
+ * @since 1.0.0
  */
 @Slf4j
 public class MqttDeviceSession implements DeviceSession {
 
     private MqttEndpoint endpoint;
 
+    @Getter
+    private DeviceOperation operation;
+
+    @Getter
+    private ProtocolSupport protocolSupport;
+
     private long connectTime = System.currentTimeMillis();
 
     private volatile long lastPingTime = System.currentTimeMillis();
 
-    public MqttDeviceSession(MqttEndpoint endpoint) {
+    public MqttDeviceSession(MqttEndpoint endpoint, DeviceOperation operation, ProtocolSupport protocolSupport) {
         endpoint.pingHandler(r -> ping());
         this.endpoint = endpoint;
+        this.operation = operation;
+        this.protocolSupport = protocolSupport;
     }
 
     @Override
@@ -82,6 +94,7 @@ public class MqttDeviceSession implements DeviceSession {
     public void ping() {
 //        log.info("mqtt client[{}] ping", getDeviceId());
         lastPingTime = System.currentTimeMillis();
+        operation.ping();
     }
 
     @Override
