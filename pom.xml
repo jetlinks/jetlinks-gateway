@@ -10,7 +10,7 @@
     </parent>
     <artifactId>jetlinks-gateway</artifactId>
     <properties>
-        <vertx.version>3.6.0</vertx.version>
+        <vertx.version>3.6.3</vertx.version>
     </properties>
 
     <build>
