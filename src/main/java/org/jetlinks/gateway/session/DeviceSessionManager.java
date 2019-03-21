@@ -12,4 +12,5 @@ public interface DeviceSessionManager {
 
     DeviceSession unregister(String idOrDeviceId);
 
+    String getServerId();
 }

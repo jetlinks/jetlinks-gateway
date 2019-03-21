@@ -4,21 +4,27 @@ import lombok.Getter;
 import lombok.Setter;
 import org.jetlinks.protocol.ProtocolSupports;
 import org.jetlinks.protocol.exception.ErrorCode;
+import org.jetlinks.protocol.message.ChildDeviceMessage;
+import org.jetlinks.protocol.message.CommonDeviceMessageReply;
 import org.jetlinks.protocol.message.DeviceMessage;
+import org.jetlinks.protocol.message.DeviceMessageReply;
 import org.jetlinks.protocol.message.codec.EncodedMessage;
 import org.jetlinks.protocol.message.codec.MessageEncodeContext;
 import org.jetlinks.protocol.message.function.FunctionInvokeMessage;
+import org.jetlinks.protocol.message.function.FunctionInvokeMessageReply;
+import org.jetlinks.protocol.message.property.ReadPropertyMessage;
+import org.jetlinks.protocol.message.property.ReadPropertyMessageReply;
 import org.jetlinks.protocol.metadata.DeviceMetadata;
 import org.jetlinks.protocol.metadata.FunctionMetadata;
-import org.jetlinks.registry.api.DeviceMessageHandler;
-import org.jetlinks.registry.api.DeviceMonitor;
-import org.jetlinks.registry.api.DeviceRegistry;
+import org.jetlinks.protocol.utils.IdUtils;
+import org.jetlinks.registry.api.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -70,49 +76,133 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
                 .forEach(this::unregister);
     }
 
+    protected void doSend(DeviceMessage message, DeviceSession session) {
+        String deviceId = message.getDeviceId();
+        //获取协议并转码
+        EncodedMessage encodedMessage = session.getProtocolSupport()
+                .getMessageCodec()
+                .encode(session.getTransport(), new MessageEncodeContext() {
+                    @Override
+                    public DeviceMessage getMessage() {
+                        return message;
+                    }
+
+                    @Override
+                    public DeviceMetadata getDeviceMetadata() {
+                        return session.getOperation().getMetadata();
+                    }
+                });
+        //发往设备
+        session.send(encodedMessage);
+        //如果是异步操作，则直接返回结果
+        if (message instanceof FunctionInvokeMessage) {
+            FunctionInvokeMessage invokeMessage = ((FunctionInvokeMessage) message);
+            boolean async = session.getOperation()
+                    .getMetadata()
+                    .getFunction(invokeMessage.getFunctionId())
+                    .map(FunctionMetadata::isAsync)
+                    .orElse(false);
+            if (async) {
+                //直接回复消息
+                deviceMessageHandler.reply(FunctionInvokeMessageReply.builder()
+                        .messageId(message.getMessageId())
+                        .deviceId(deviceId)
+                        .message(ErrorCode.REQUEST_HANDLING.getText())
+                        .code(ErrorCode.REQUEST_HANDLING.name())
+                        .success(false)
+                        .build());
+            }
+        }
+    }
+
+    protected DeviceMessage createChildDeviceMessage(DeviceOperation childDevice, DeviceMessage message) {
+        ChildDeviceMessage deviceMessage = new ChildDeviceMessage();
+        DeviceInfo deviceInfo = childDevice.getDeviceInfo();
+
+        deviceMessage.setChildDeviceId(deviceInfo.getId());
+        deviceMessage.setChildDeviceMessage(message);
+        deviceMessage.setDeviceId(deviceInfo.getParentDeviceId());
+        deviceMessage.setMessageId(IdUtils.newUUID());
+
+        return deviceMessage;
+    }
+
+    public DeviceMessageReply createChildDeviceMessageReply(DeviceMessage source, Object reply) {
+        CommonDeviceMessageReply messageReply = null;
+        if (source instanceof ReadPropertyMessage) {
+            if (reply == null) {
+                messageReply = new ReadPropertyMessageReply();
+                messageReply.setMessageId(source.getMessageId());
+                messageReply.setDeviceId(source.getDeviceId());
+            } else if (reply instanceof ReadPropertyMessageReply) {
+                messageReply = ((ReadPropertyMessageReply) reply);
+            }
+
+        } else if (source instanceof FunctionInvokeMessage) {
+            if (reply == null) {
+                messageReply = new FunctionInvokeMessageReply();
+                messageReply.setMessageId(source.getMessageId());
+                messageReply.setDeviceId(source.getDeviceId());
+            } else if (reply instanceof FunctionInvokeMessageReply) {
+                messageReply = ((FunctionInvokeMessageReply) reply);
+            }
+        } else if (reply instanceof DeviceMessageReply) {
+            return (DeviceMessageReply) reply;
+        } else {
+            if (reply == null) {
+                messageReply = new CommonDeviceMessageReply();
+                messageReply.setMessageId(source.getMessageId());
+                messageReply.setDeviceId(source.getDeviceId());
+            } else {
+                throw new UnsupportedOperationException("不支持的消息[" + reply.getClass() + "]:" + reply);
+            }
+        }
+        return messageReply;
+    }
+
     public void init() {
         //接收发往设备的消息
         deviceMessageHandler.handleMessage(serverId, message -> {
             String deviceId = message.getDeviceId();
-            DeviceSession client = repository.get(deviceId);
-            if (client != null) {
-                //获取协议并转码
-                EncodedMessage encodedMessage = client.getProtocolSupport()
-                        .getMessageCodec()
-                        .encode(client.getTransport(), new MessageEncodeContext() {
-                            @Override
-                            public DeviceMessage getMessage() {
-                                return message;
-                            }
-
-                            @Override
-                            public DeviceMetadata getDeviceMetadata() {
-                                return client.getOperation().getMetadata();
-                            }
-                        });
-                //发往设备
-                client.send(encodedMessage);
-                //如果是异步操作，则直接返回结果
-                if (message instanceof FunctionInvokeMessage) {
-                    FunctionInvokeMessage invokeMessage = ((FunctionInvokeMessage) message);
-                    boolean async = client.getOperation()
-                            .getMetadata()
-                            .getFunction(invokeMessage.getFunctionId())
-                            .map(FunctionMetadata::isAsync)
-                            .orElse(false);
-                    if (async) {
-                        //直接回复消息
-                        deviceMessageHandler.reply(FunctionInvokeMessage.builder()
-                                .messageId(message.getMessageId())
-                                .message(ErrorCode.REQUEST_HANDLING.getText())
-                                .code(ErrorCode.REQUEST_HANDLING.name())
-                                .success(false)
-                                .build());
-                    }
-                }
+            DeviceSession session = repository.get(deviceId);
+            //直连设备
+            if (session != null) {
+                doSend(message, session);
             } else {
-                //设备不在当前服务器节点
-                log.warn("设备[{}]未链接服务器[{}],无法发送消息:{}", deviceId, serverId, message.toJson());
+                DeviceOperation operation = deviceRegistry.getDevice(deviceId);
+                String parentId = operation.getDeviceInfo().getParentDeviceId();
+                if (null != parentId && !parentId.isEmpty()) {
+                    DeviceMessage childMessage = createChildDeviceMessage(operation, message);
+                    session = repository.get(parentId);
+                    //网关设备就在当前服务器
+                    if (session != null) {
+                        doSend(childMessage, session);
+                    } else {
+                        DeviceMessageReply reply;
+                        try {
+                            //向父设备发送消息
+                            reply = deviceRegistry.getDevice(parentId)
+                                    .messageSender()
+                                    .send(childMessage, obj -> createChildDeviceMessageReply(message, obj))
+                                    .toCompletableFuture()
+                                    .get(10, TimeUnit.SECONDS);
+                        } catch (TimeoutException e) {
+                            reply = createChildDeviceMessageReply(message, null);
+                            reply.error(ErrorCode.TIME_OUT);
+                        } catch (Exception e) {
+                            log.error("等待子设备返回消息失败", e);
+                            reply = createChildDeviceMessageReply(message, null);
+                            reply.error(ErrorCode.SYSTEM_ERROR);
+                        }
+                        deviceMessageHandler.reply(reply);
+                    }
+                } else {
+                    //设备不在当前服务器节点
+                    log.warn("设备[{}]未连接服务器[{}],无法发送消息:{}", deviceId, serverId, message.toJson());
+                    DeviceMessageReply reply = createChildDeviceMessageReply(message, null);
+                    reply.error(ErrorCode.CLIENT_OFFLINE);
+                    deviceMessageHandler.reply(reply);
+                }
             }
         });
         //每30秒检查一次设备连接情况
