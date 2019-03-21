@@ -118,8 +118,6 @@ public class MqttServer extends AbstractVerticle {
         if (old == null) {
             if (client.isConnected()) {
                 client.close();
-            } else {
-                client.reject(MqttConnectReturnCode.CONNECTION_REFUSED_SERVER_UNAVAILABLE);
             }
         }
     }
@@ -133,7 +131,7 @@ public class MqttServer extends AbstractVerticle {
         try {
             //注册
             deviceSessionManager.register(session);
-            logger.info("MQTT客户端[{}]建立链接", clientId);
+            logger.info("MQTT客户端[{}]建立连接", clientId);
             endpoint
                     .closeHandler(v -> doCloseEndpoint(endpoint))
                     .subscribeHandler(subscribe -> {
@@ -148,11 +146,11 @@ public class MqttServer extends AbstractVerticle {
                     })
                     .unsubscribeHandler(unsubscribe -> endpoint.unsubscribeAcknowledge(unsubscribe.messageId()))
                     .disconnectHandler(v -> {
-                        logger.info("MQTT客户端[{}]断开链接", clientId);
+                        logger.info("MQTT客户端[{}]断开连接", clientId);
                         doCloseEndpoint(endpoint);
                     })
                     .exceptionHandler(e -> {
-                        logger.error("MQTT客户端[{}]链接错误", clientId, e);
+                        logger.error("MQTT客户端[{}]连接错误", clientId, e);
                         doCloseEndpoint(endpoint);
                     })
                     .publishHandler(message -> {

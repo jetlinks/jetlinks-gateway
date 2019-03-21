@@ -130,7 +130,7 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
     public DeviceMessageReply createChildDeviceMessageReply(DeviceMessage source, Object reply) {
         CommonDeviceMessageReply messageReply = null;
         if (source instanceof ReadPropertyMessage) {
-            if (reply == null) {
+            if (reply == null || reply instanceof ErrorCode) {
                 messageReply = new ReadPropertyMessageReply();
                 messageReply.setMessageId(source.getMessageId());
                 messageReply.setDeviceId(source.getDeviceId());
@@ -139,7 +139,7 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
             }
 
         } else if (source instanceof FunctionInvokeMessage) {
-            if (reply == null) {
+            if (reply == null || reply instanceof ErrorCode) {
                 messageReply = new FunctionInvokeMessageReply();
                 messageReply.setMessageId(source.getMessageId());
                 messageReply.setDeviceId(source.getDeviceId());
@@ -149,7 +149,7 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
         } else if (reply instanceof DeviceMessageReply) {
             return (DeviceMessageReply) reply;
         } else {
-            if (reply == null) {
+            if (reply == null || reply instanceof ErrorCode) {
                 messageReply = new CommonDeviceMessageReply();
                 messageReply.setMessageId(source.getMessageId());
                 messageReply.setDeviceId(source.getDeviceId());
@@ -157,10 +157,22 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
                 throw new UnsupportedOperationException("不支持的消息[" + reply.getClass() + "]:" + reply);
             }
         }
+        if (reply instanceof ErrorCode) {
+            messageReply.error((ErrorCode) reply);
+        }
         return messageReply;
     }
 
     public void init() {
+        deviceMessageHandler.handleDeviceCheck(serverId, deviceId -> {
+            DeviceSession session = repository.get(deviceId);
+            if (session == null) {
+                DeviceOperation operation = deviceRegistry.getDevice(deviceId);
+                if (serverId.equals(operation.getServerId())) {
+                    operation.offline();
+                }
+            }
+        });
         //接收发往设备的消息
         deviceMessageHandler.handleMessage(serverId, message -> {
             String deviceId = message.getDeviceId();
@@ -234,19 +246,19 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
     }
 
     @Override
-    public DeviceSession register(DeviceSession deviceClient) {
-        DeviceSession old = repository.put(deviceClient.getDeviceId(), deviceClient);
+    public DeviceSession register(DeviceSession session) {
+        DeviceSession old = repository.put(session.getDeviceId(), session);
         if (null != old) {
             old.close();
         } else {
             counter.incrementAndGet();
         }
-        if (!deviceClient.getId().equals(deviceClient.getDeviceId())) {
-            repository.put(deviceClient.getId(), deviceClient);
+        if (!session.getId().equals(session.getDeviceId())) {
+            repository.put(session.getId(), session);
         }
         deviceRegistry
-                .getDevice(deviceClient.getDeviceId())
-                .online(serverId, "-");
+                .getDevice(session.getDeviceId())
+                .online(serverId, session.getId());
         return old;
     }
 
