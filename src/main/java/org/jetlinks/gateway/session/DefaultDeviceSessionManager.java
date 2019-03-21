@@ -24,7 +24,7 @@ import org.slf4j.LoggerFactory;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Function;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -62,6 +62,14 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
     @Getter
     @Setter
     private ScheduledExecutorService executorService;
+
+    @Getter
+    @Setter
+    private Consumer<DeviceSession> onDeviceRegister;
+
+    @Getter
+    @Setter
+    private Consumer<DeviceSession> onDeviceUnRegister;
 
     private Queue<Runnable> closeClientJobs = new LinkedBlockingQueue<>();
 
@@ -259,6 +267,9 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
         deviceRegistry
                 .getDevice(session.getDeviceId())
                 .online(serverId, session.getId());
+        if (null != onDeviceRegister) {
+            onDeviceRegister.accept(session);
+        }
         return old;
     }
 
@@ -273,6 +284,9 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
             }
             closeClientJobs.add(client::close);
             deviceRegistry.getDevice(client.getDeviceId()).offline();
+            if (null != onDeviceUnRegister) {
+                onDeviceUnRegister.accept(client);
+            }
         }
         return client;
     }
