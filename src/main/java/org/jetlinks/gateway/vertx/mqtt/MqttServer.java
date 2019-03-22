@@ -172,6 +172,11 @@ public class MqttServer extends AbstractVerticle {
                                     .getMessageCodec()
                                     .decode(Transport.MQTT, new FromDeviceMessageContext() {
                                         @Override
+                                        public DeviceOperation getDeviceOperation() {
+                                            return session.getOperation();
+                                        }
+
+                                        @Override
                                         public void sendToDevice(EncodedMessage message) {
                                             session.send(message);
                                         }
@@ -186,10 +191,6 @@ public class MqttServer extends AbstractVerticle {
                                             return encodedMessage;
                                         }
 
-                                        @Override
-                                        public DeviceMetadata getDeviceMetadata() {
-                                            return session.getOperation().getMetadata();
-                                        }
                                     });
                             if (!(deviceMessage instanceof EmptyDeviceMessage)) {
                                 messageConsumer.accept(session, deviceMessage);

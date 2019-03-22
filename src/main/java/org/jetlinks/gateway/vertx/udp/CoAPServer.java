@@ -52,6 +52,12 @@ public abstract class CoAPServer extends UDPServer {
             protocolSupports.getProtocol(protocol)
                     .getMessageCodec()
                     .decode(Transport.CoAP, new FromDeviceMessageContext() {
+
+                        @Override
+                        public DeviceOperation getDeviceOperation() {
+                            return deviceOperation;
+                        }
+
                         @Override
                         public void sendToDevice(EncodedMessage message) {
                             socket.send(Buffer.buffer(message.getByteBuf()), address.port(), host, result -> {
@@ -73,10 +79,6 @@ public abstract class CoAPServer extends UDPServer {
                             return coapMessage;
                         }
 
-                        @Override
-                        public DeviceMetadata getDeviceMetadata() {
-                            return deviceOperation.getMetadata();
-                        }
                     });
         }
     }
