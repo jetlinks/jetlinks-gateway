@@ -3,7 +3,7 @@ package org.jetlinks.gateway.session;
 import org.jetlinks.protocol.ProtocolSupport;
 import org.jetlinks.protocol.message.codec.EncodedMessage;
 import org.jetlinks.protocol.message.codec.Transport;
-import org.jetlinks.registry.api.DeviceOperation;
+import org.jetlinks.protocol.device.DeviceOperation;
 
 /**
  * @author zhouhao

@@ -1,25 +1,20 @@
 package org.jetlinks.gateway.vertx.mqtt;
 
 import io.netty.buffer.Unpooled;
-import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Vertx;
-import io.vertx.core.VertxOptions;
-import io.vertx.mqtt.MqttClient;
 import io.vertx.mqtt.MqttServerOptions;
 import org.jetlinks.gateway.session.DefaultDeviceSessionManager;
-import org.jetlinks.gateway.session.DeviceSessionManager;
 import org.jetlinks.protocol.ProtocolSupports;
+import org.jetlinks.protocol.device.AuthenticationResponse;
+import org.jetlinks.protocol.device.DeviceInfo;
 import org.jetlinks.protocol.message.codec.EncodedMessage;
 import org.jetlinks.registry.api.*;
-import org.jetlinks.registry.redis.RedissonDeviceMessageHandler;
 import org.jetlinks.registry.redis.RedissonDeviceMonitor;
 import org.jetlinks.registry.redis.RedissonDeviceRegistry;
 import org.redisson.api.RedissonClient;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-
-import static org.junit.Assert.*;
 
 /**
  * @author zhouhao
@@ -33,11 +28,8 @@ public class MqttServerTest {
 
         ProtocolSupports protocolSupports = new MockProtocolSupports();
 
-        ExecutorService executorService = Executors.newFixedThreadPool(2);
         DeviceRegistry registry = new RedissonDeviceRegistry(client,
-                (request, deviceOperation) -> AuthenticationResponse.success(),
-                protocolSupports,
-                executorService);
+                protocolSupports);
         DeviceInfo deviceInfo = new DeviceInfo();
 
         deviceInfo.setId("test");

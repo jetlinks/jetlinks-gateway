@@ -12,8 +12,8 @@ import org.jetlinks.protocol.message.codec.EncodedMessage;
 import org.jetlinks.protocol.message.codec.FromDeviceMessageContext;
 import org.jetlinks.protocol.message.codec.Transport;
 import org.jetlinks.protocol.metadata.DeviceMetadata;
-import org.jetlinks.registry.api.DeviceInfo;
-import org.jetlinks.registry.api.DeviceOperation;
+import org.jetlinks.protocol.device.DeviceInfo;
+import org.jetlinks.protocol.device.DeviceOperation;
 
 /**
  * @author zhouhao

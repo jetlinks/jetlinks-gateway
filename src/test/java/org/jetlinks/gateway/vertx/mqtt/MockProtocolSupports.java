@@ -5,6 +5,9 @@ import com.alibaba.fastjson.JSONObject;
 import io.netty.buffer.Unpooled;
 import org.jetlinks.protocol.ProtocolSupport;
 import org.jetlinks.protocol.ProtocolSupports;
+import org.jetlinks.protocol.device.AuthenticationRequest;
+import org.jetlinks.protocol.device.AuthenticationResponse;
+import org.jetlinks.protocol.device.DeviceOperation;
 import org.jetlinks.protocol.message.CommonDeviceMessageReply;
 import org.jetlinks.protocol.message.DeviceMessage;
 import org.jetlinks.protocol.message.codec.*;
@@ -79,6 +82,11 @@ public class MockProtocolSupports implements ProtocolSupports {
             @Override
             public DeviceMetadataCodec getMetadataCodec() {
                 throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public AuthenticationResponse authenticate(AuthenticationRequest request, DeviceOperation deviceOperation) {
+                return AuthenticationResponse.success();
             }
         };
     }

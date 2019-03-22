@@ -3,6 +3,8 @@ package org.jetlinks.gateway.session;
 import lombok.Getter;
 import lombok.Setter;
 import org.jetlinks.protocol.ProtocolSupports;
+import org.jetlinks.protocol.device.DeviceInfo;
+import org.jetlinks.protocol.device.DeviceOperation;
 import org.jetlinks.protocol.exception.ErrorCode;
 import org.jetlinks.protocol.message.ChildDeviceMessage;
 import org.jetlinks.protocol.message.CommonDeviceMessageReply;

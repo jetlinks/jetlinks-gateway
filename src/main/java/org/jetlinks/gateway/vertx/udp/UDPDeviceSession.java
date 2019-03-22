@@ -10,7 +10,7 @@ import org.jetlinks.gateway.session.DeviceSession;
 import org.jetlinks.protocol.ProtocolSupport;
 import org.jetlinks.protocol.message.codec.EncodedMessage;
 import org.jetlinks.protocol.message.codec.Transport;
-import org.jetlinks.registry.api.DeviceOperation;
+import org.jetlinks.protocol.device.DeviceOperation;
 
 import java.util.concurrent.TimeUnit;
 

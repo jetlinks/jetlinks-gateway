@@ -13,6 +13,10 @@ import org.jetlinks.gateway.session.DeviceSession;
 import org.jetlinks.gateway.session.DeviceSessionManager;
 import org.jetlinks.protocol.ProtocolSupport;
 import org.jetlinks.protocol.ProtocolSupports;
+import org.jetlinks.protocol.device.AuthenticationResponse;
+import org.jetlinks.protocol.device.DeviceOperation;
+import org.jetlinks.protocol.device.DeviceState;
+import org.jetlinks.protocol.device.MqttAuthenticationRequest;
 import org.jetlinks.protocol.message.EmptyDeviceMessage;
 import org.jetlinks.protocol.message.codec.EncodedMessage;
 import org.jetlinks.protocol.message.DeviceMessage;
@@ -93,7 +97,7 @@ public class MqttServer extends AbstractVerticle {
             return;
         }
         //进行认证
-        AuthenticationResponse response = operation.authenticate(new UsernamePasswordAuthenticationRequest(
+        AuthenticationResponse response = operation.authenticate(new MqttAuthenticationRequest(
                 clientId, userName, passWord
         ));
         //授权通过

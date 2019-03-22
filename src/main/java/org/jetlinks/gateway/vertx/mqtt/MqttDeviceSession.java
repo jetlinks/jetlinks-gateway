@@ -4,14 +4,13 @@ import io.netty.handler.codec.mqtt.MqttQoS;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.mqtt.MqttEndpoint;
 import lombok.Getter;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.jetlinks.gateway.session.DeviceSession;
 import org.jetlinks.protocol.ProtocolSupport;
 import org.jetlinks.protocol.message.codec.EncodedMessage;
 import org.jetlinks.protocol.message.codec.MqttMessage;
 import org.jetlinks.protocol.message.codec.Transport;
-import org.jetlinks.registry.api.DeviceOperation;
+import org.jetlinks.protocol.device.DeviceOperation;
 
 import java.nio.charset.StandardCharsets;
 
@@ -92,7 +91,7 @@ public class MqttDeviceSession implements DeviceSession {
 
     @Override
     public void ping() {
-//        log.info("mqtt client[{}] ping", getDeviceId());
+//        log.info("mqtt client[{}] ping", getClientId());
         lastPingTime = System.currentTimeMillis();
         operation.ping();
     }
