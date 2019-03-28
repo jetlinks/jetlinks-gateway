@@ -88,8 +88,10 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
 
     protected void doSend(DeviceMessage message, DeviceSession session) {
         String deviceId = message.getDeviceId();
+        DeviceOperation operation = deviceRegistry.getDevice(deviceId);
         //获取协议并转码
-        EncodedMessage encodedMessage = session.getProtocolSupport()
+        EncodedMessage encodedMessage = protocolSupports
+                .getProtocol(operation.getDeviceInfo().getProtocol())
                 .getMessageCodec()
                 .encode(session.getTransport(), new MessageEncodeContext() {
                     @Override
@@ -98,8 +100,8 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
                     }
 
                     @Override
-                    public DeviceMetadata getDeviceMetadata() {
-                        return session.getOperation().getMetadata();
+                    public DeviceOperation getDeviceOperation() {
+                        return operation;
                     }
                 });
         //发往设备
