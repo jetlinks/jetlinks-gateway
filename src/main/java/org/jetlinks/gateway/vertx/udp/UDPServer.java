@@ -25,7 +25,7 @@ import java.util.function.BiConsumer;
 @Setter
 public abstract class UDPServer extends AbstractVerticle {
 
-    protected DatagramSocketOptions datagramSocketOptions;
+    protected DatagramSocketOptions options;
 
     protected DatagramSocket socket;
 
@@ -43,13 +43,12 @@ public abstract class UDPServer extends AbstractVerticle {
 
     @Override
     public void start() {
-        Objects.requireNonNull(datagramSocketOptions);
+        Objects.requireNonNull(options);
         Objects.requireNonNull(deviceRegistry);
         Objects.requireNonNull(sessionManager);
         Objects.requireNonNull(protocolSupports);
         Objects.requireNonNull(messageConsumer);
 
-        DatagramSocketOptions options = new DatagramSocketOptions();
         socket = vertx.createDatagramSocket(options);
         socket.listen(port, host, result -> {
             if (result.succeeded()) {
