@@ -162,7 +162,7 @@ public class MqttServer extends AbstractVerticle {
                         String topicName = message.topicName();
                         Buffer buffer = message.payload();
                         if (logger.isDebugEnabled()) {
-                            logger.debug("收到设备[{}]消息{}=>{}", topicName, clientId, buffer.toString());
+                            logger.debug("收到设备[{}]消息[{}]=>{}", clientId, topicName, buffer.toString());
                         }
                         try {
                             //消息协议
