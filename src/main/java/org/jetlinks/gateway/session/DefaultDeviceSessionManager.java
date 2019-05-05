@@ -5,6 +5,7 @@ import lombok.Setter;
 import org.jetlinks.protocol.ProtocolSupports;
 import org.jetlinks.protocol.device.DeviceInfo;
 import org.jetlinks.protocol.device.DeviceOperation;
+import org.jetlinks.protocol.device.DeviceState;
 import org.jetlinks.protocol.exception.ErrorCode;
 import org.jetlinks.protocol.message.ChildDeviceMessage;
 import org.jetlinks.protocol.message.CommonDeviceMessageReply;
@@ -178,11 +179,13 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
     public void init() {
         deviceMessageHandler.handleDeviceCheck(serverId, deviceId -> {
             DeviceSession session = repository.get(deviceId);
+            DeviceOperation operation = deviceRegistry.getDevice(deviceId);
             if (session == null) {
-                DeviceOperation operation = deviceRegistry.getDevice(deviceId);
                 if (serverId.equals(operation.getServerId())) {
                     operation.offline();
                 }
+            } else {
+                operation.putState(DeviceState.online);
             }
         });
         //接收发往设备的消息
