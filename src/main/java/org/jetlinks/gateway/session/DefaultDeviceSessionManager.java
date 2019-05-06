@@ -110,7 +110,8 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
         //如果是异步操作，则直接返回结果
         if (message instanceof FunctionInvokeMessage) {
             FunctionInvokeMessage invokeMessage = ((FunctionInvokeMessage) message);
-            boolean async = session.getOperation()
+            boolean async = Boolean.TRUE.equals(invokeMessage.getAsync())
+                    || session.getOperation()
                     .getMetadata()
                     .getFunction(invokeMessage.getFunctionId())
                     .map(FunctionMetadata::isAsync)
