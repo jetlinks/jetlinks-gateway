@@ -37,7 +37,10 @@ public class FixedLengthTcpCodec implements TcpMessageCodec, TcpMessageEncoder {
     @Override
     public Buffer encode(MessageType type, Buffer data) {
         byte[] len = int2Bytes(data.length(), 4);
-        return Buffer.buffer(type.type).appendBytes(len).appendBuffer(data);
+        return Buffer.buffer(data.length() + 5)
+                .appendByte(type.type)
+                .appendBytes(len)
+                .appendBuffer(data);
 
     }
 

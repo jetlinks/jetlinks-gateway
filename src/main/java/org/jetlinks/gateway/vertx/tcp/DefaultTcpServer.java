@@ -74,7 +74,7 @@ public abstract class DefaultTcpServer extends TcpServer {
                 TcpDeviceSession session = new TcpDeviceSession() {
                     @Override
                     public void send(EncodedMessage encodedMessage) {
-                        sendToDevice(socket, MessageType.MESSAGE, Buffer.buffer(encodedMessage.getByteBuf()));
+                        DefaultTcpServer.this.send(socket, MessageType.MESSAGE, Buffer.buffer(encodedMessage.getByteBuf()));
                     }
                 };
                 DeviceOperation operation = getRegistry().getDevice(response.getDeviceId());
@@ -128,7 +128,7 @@ public abstract class DefaultTcpServer extends TcpServer {
         }
     }
 
-    protected void sendToDevice(NetSocket socket, MessageType type, Buffer payload) {
+    protected void send(NetSocket socket, MessageType type, Buffer payload) {
         socket.write(messageCodec.encoder().encode(type, payload));
     }
 

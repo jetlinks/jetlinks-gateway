@@ -10,7 +10,6 @@ import org.jetlinks.gateway.vertx.tcp.message.MessageType;
 import org.junit.Assert;
 import org.junit.Test;
 
-import java.math.BigInteger;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -61,7 +60,7 @@ public class DefaultTcpServerTest {
 
         AtomicReference<Buffer> payloadReference = new AtomicReference<>();
         //启动服务
-        startServer(port, success -> vertx.createNetClient()
+        DefaultTcpServer server = startServer(port, success -> vertx.createNetClient()
                         .connect(port, "127.0.0.1", result -> {
                             if (result.succeeded()) {
                                 socket.set(result.result());
@@ -89,15 +88,16 @@ public class DefaultTcpServerTest {
             }
             String payload = builder.toString();
 //            System.out.println(payload.length());
-            byte[] len = FixedLengthTcpCodec.int2Bytes(payload.length(), 4);
+//            byte[] len = FixedLengthTcpCodec.int2Bytes(payload.length(), 4);
 
-            client.write(Buffer.buffer()
-                    //消息类型
-                    .appendByte(MessageType.MESSAGE.type)
-                    //消息长度
-                    .appendBytes(len)
-                    //消息体
-                    .appendString(payload));
+            server.send(client, MessageType.MESSAGE, Buffer.buffer(payload));
+//            client.write(Buffer.buffer()
+//                    //消息类型
+//                    .appendByte(MessageType.MESSAGE.type)
+//                    //消息长度
+//                    .appendBytes(len)
+//                    //消息体
+//                    .appendString(payload));
 
             sendCountDown.get().await(3, TimeUnit.SECONDS);
             Assert.assertNotNull(payloadReference.get());
