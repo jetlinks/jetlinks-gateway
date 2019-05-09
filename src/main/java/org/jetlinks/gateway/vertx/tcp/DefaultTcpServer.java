@@ -34,12 +34,6 @@ public abstract class DefaultTcpServer extends TcpServer {
     @Setter
     private BiConsumer<DeviceSession, DeviceMessage> deviceMessageHandler;
 
-    @Override
-    public void start() {
-        super.start();
-
-    }
-
     protected abstract TcpAuthenticationResponse doAuth(NetSocket socket, Buffer payload);
 
     protected abstract void handleNoRegister(NetSocket socket);

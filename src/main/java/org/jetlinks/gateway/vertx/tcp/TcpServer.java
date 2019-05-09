@@ -34,6 +34,10 @@ public abstract class TcpServer extends AbstractVerticle {
 
     private Map<NetSocket, Long> waitAuthSocket = new ConcurrentHashMap<>();
 
+    @Getter
+    @Setter
+    private long authTimeout =TimeUnit.SECONDS.toMillis(10);
+
     @Override
     public void start() {
         Objects.requireNonNull(options);
@@ -53,7 +57,7 @@ public abstract class TcpServer extends AbstractVerticle {
         vertx.setPeriodic(10000, id -> {
             waitAuthSocket.entrySet()
                     .stream()
-                    .filter(e -> System.currentTimeMillis() - e.getValue() > TimeUnit.SECONDS.toMillis(10))
+                    .filter(e -> System.currentTimeMillis() - e.getValue() > authTimeout)
                     .map(Map.Entry::getKey)
                     .forEach(this::handleNotAcceptSocket);
         });

@@ -2,6 +2,7 @@ package org.jetlinks.gateway.vertx.tcp;
 
 import io.vertx.core.Vertx;
 import io.vertx.core.buffer.Buffer;
+import io.vertx.core.net.NetClientOptions;
 import io.vertx.core.net.NetServerOptions;
 import io.vertx.core.net.NetSocket;
 import lombok.SneakyThrows;
@@ -37,9 +38,12 @@ public class DefaultTcpServerTest {
                 payloadConsumer.accept(messageType, payload);
             }
         };
+        tcpServer.setAuthTimeout(TimeUnit.SECONDS.toMillis(30));
         NetServerOptions options = new NetServerOptions()
                 .setPort(port)
-                .setReceiveBufferSize(90000);//设置最大消息长度
+                .setUsePooledBuffers(true)
+                .setSendBufferSize(100000)
+                .setReceiveBufferSize(100000);//设置最大消息长度
 
         tcpServer.setMessageCodec(new FixedLengthTcpCodec());
 
@@ -60,7 +64,11 @@ public class DefaultTcpServerTest {
 
         AtomicReference<Buffer> payloadReference = new AtomicReference<>();
         //启动服务
-        DefaultTcpServer server = startServer(port, success -> vertx.createNetClient()
+        DefaultTcpServer server = startServer(port, success -> vertx
+                        .createNetClient(new NetClientOptions()
+                                .setUsePooledBuffers(true)
+                                .setReceiveBufferSize(100000)
+                                .setSendBufferSize(100000))
                         .connect(port, "127.0.0.1", result -> {
                             if (result.succeeded()) {
                                 socket.set(result.result());
@@ -79,29 +87,26 @@ public class DefaultTcpServerTest {
 
         NetSocket client = socket.get();
         Assert.assertNotNull(client);
-        for (int i = 0; i < 1000; i++) {
-            sendCountDown.set(new CountDownLatch(1));
-            //大字符
-            StringBuilder builder = new StringBuilder();
-            for (int i1 = 0; i1 < 10000; i1++) {
-                builder.append("data").append(i1).append(",");
+        for (int i = 0; i < 100000; i++) {
+            try {
+                sendCountDown.set(new CountDownLatch(1));
+                //大字符
+                StringBuilder builder = new StringBuilder();
+                for (int i1 = 0; i1 < 1000; i1++) {
+                    builder.append("data").append(i1).append(",");
+                }
+                String payload = builder.toString();
+
+                server.send(client, MessageType.MESSAGE, Buffer.buffer(payload));
+
+                Assert.assertTrue(sendCountDown.get().await(3, TimeUnit.SECONDS));
+                Assert.assertNotNull(payloadReference.get());
+                Assert.assertEquals(payloadReference.get().toString(), payload);
+                payloadReference.set(null);
+            } catch (Throwable e) {
+                System.out.println(i);
+                throw e;
             }
-            String payload = builder.toString();
-//            System.out.println(payload.length());
-//            byte[] len = FixedLengthTcpCodec.int2Bytes(payload.length(), 4);
-
-            server.send(client, MessageType.MESSAGE, Buffer.buffer(payload));
-//            client.write(Buffer.buffer()
-//                    //消息类型
-//                    .appendByte(MessageType.MESSAGE.type)
-//                    //消息长度
-//                    .appendBytes(len)
-//                    //消息体
-//                    .appendString(payload));
-
-            sendCountDown.get().await(3, TimeUnit.SECONDS);
-            Assert.assertNotNull(payloadReference.get());
-            Assert.assertEquals(payloadReference.get().toString(), payload);
         }
 
 

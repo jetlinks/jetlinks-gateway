@@ -36,12 +36,22 @@ public class FixedLengthTcpCodec implements TcpMessageCodec, TcpMessageEncoder {
 
     @Override
     public Buffer encode(MessageType type, Buffer data) {
-        byte[] len = int2Bytes(data.length(), 4);
-        return Buffer.buffer(data.length() + 5)
+        int length = data.length();
+        byte[] len = int2Bytes(length, 4);
+        return Buffer.buffer(length + 5)
                 .appendByte(type.type)
                 .appendBytes(len)
                 .appendBuffer(data);
 
+    }
+
+    public static int bytes2Int(byte[] bytes) {
+        int len = bytes.length;
+        int r = (bytes[len - 1] & 0xff);
+        for (int i = len - 2; i >= 0; i--) {
+            r = r | ((bytes[i] & 0xff) << (8 * (len - (i + 1))));
+        }
+        return r;
     }
 
     public static byte[] int2Bytes(int value, int len) {
@@ -56,49 +66,46 @@ public class FixedLengthTcpCodec implements TcpMessageCodec, TcpMessageEncoder {
         Consumer<Void> ping;
         BiConsumer<MessageType, Buffer> dataConsumer;
         Consumer<Byte> unknown;
-        byte type = -1;
+        MessageType messageType = null;
         RecordParser parser = RecordParser.newFixed(5);
         int totalLength;
         volatile boolean headerParsed = false;
-        boolean error;
+        boolean exit;
 
         @Override
         public void handle(Buffer event) {
-            if (error) {
+            if (exit) {
                 return;
             }
             if (!headerParsed) {
                 headerParsed = true;
-                type = event.getByte(0); //第1位: 消息类型
-                MessageType messageType = MessageType.of(type).orElse(null);
+                //第1位: 消息类型
+                byte type = event.getByte(0);
+                messageType = MessageType.of(type).orElse(null);
                 if (messageType == null) {
-                    error = true;
+                    exit = true;
                     if (unknown != null) {
                         unknown.accept(type);
                     }
                     return;
                 }
-                byte[] len = event.getBytes(1, 5); //1-5位: 消息长度
-                int payloadLength = new BigInteger(len).intValue();
-                int realLength = totalLength - 5;
-
-                if (payloadLength != realLength) {
-                    log.warn("消息实际长度[{}]与标识长度[{}]不一致", realLength, payloadLength);
-                    payloadLength = Math.min(realLength, payloadLength);
-                    error = true;
-                }
-                parser.fixedSizeMode(payloadLength);
-
-            } else {
-                MessageType messageType = MessageType.of(type)
-                        .orElse(null);
-
                 if (messageType == MessageType.PING) {
                     if (ping != null) {
                         ping.accept(null);
                     }
                     return;
                 }
+                byte[] len = event.getBytes(1, 5); //1-5位: 消息长度
+                int payloadLength = bytes2Int(len);
+                int realLength = totalLength - 5;
+
+                if (payloadLength != realLength) {
+                    log.warn("消息实际长度[{}]与标识长度[{}]不一致", realLength, payloadLength);
+                    payloadLength = Math.min(realLength, payloadLength);
+                    // exit = true;
+                }
+                parser.fixedSizeMode(payloadLength);
+            } else {
                 if (null != dataConsumer) {
                     dataConsumer.accept(messageType, event);
                 }
