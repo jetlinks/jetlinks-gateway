@@ -17,6 +17,7 @@ import org.jetlinks.protocol.device.AuthenticationResponse;
 import org.jetlinks.protocol.device.DeviceOperation;
 import org.jetlinks.protocol.device.DeviceState;
 import org.jetlinks.protocol.device.MqttAuthenticationRequest;
+import org.jetlinks.protocol.message.DeviceMessageReply;
 import org.jetlinks.protocol.message.EmptyDeviceMessage;
 import org.jetlinks.protocol.message.codec.EncodedMessage;
 import org.jetlinks.protocol.message.DeviceMessage;

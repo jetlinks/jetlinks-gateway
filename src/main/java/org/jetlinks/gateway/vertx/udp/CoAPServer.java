@@ -4,9 +4,14 @@ import io.netty.buffer.ByteBufInputStream;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.datagram.DatagramPacket;
 import io.vertx.core.net.SocketAddress;
+import lombok.Getter;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.jetlinks.coap.CoapPacket;
 import org.jetlinks.coap.exception.CoapException;
+import org.jetlinks.gateway.session.DeviceSession;
+import org.jetlinks.gateway.session.DeviceSessionManager;
+import org.jetlinks.protocol.ProtocolSupports;
 import org.jetlinks.protocol.message.DeviceMessage;
 import org.jetlinks.protocol.message.codec.CoAPMessage;
 import org.jetlinks.protocol.message.codec.EncodedMessage;
@@ -14,13 +19,26 @@ import org.jetlinks.protocol.message.codec.FromDeviceMessageContext;
 import org.jetlinks.protocol.message.codec.Transport;
 import org.jetlinks.protocol.device.DeviceInfo;
 import org.jetlinks.protocol.device.DeviceOperation;
+import org.jetlinks.registry.api.DeviceRegistry;
+
+import java.util.function.BiConsumer;
 
 /**
  * @author zhouhao
  * @since 1.0.0
  */
 @Slf4j
+@Getter
+@Setter
 public abstract class CoAPServer extends UDPServer {
+
+    protected DeviceRegistry deviceRegistry;
+
+    protected DeviceSessionManager sessionManager;
+
+    protected ProtocolSupports protocolSupports;
+
+    protected BiConsumer<DeviceSession, DeviceMessage> messageConsumer;
 
     @Override
     protected void handleUDPMessage(DatagramPacket packet) {

@@ -29,14 +29,6 @@ public abstract class UDPServer extends AbstractVerticle {
 
     protected DatagramSocket socket;
 
-    protected DeviceRegistry deviceRegistry;
-
-    protected DeviceSessionManager sessionManager;
-
-    protected ProtocolSupports protocolSupports;
-
-    protected BiConsumer<DeviceSession, DeviceMessage> messageConsumer;
-
     protected String host = "0.0.0.0";
 
     protected int port = 5080;
@@ -44,10 +36,6 @@ public abstract class UDPServer extends AbstractVerticle {
     @Override
     public void start() {
         Objects.requireNonNull(options);
-        Objects.requireNonNull(deviceRegistry);
-        Objects.requireNonNull(sessionManager);
-        Objects.requireNonNull(protocolSupports);
-        Objects.requireNonNull(messageConsumer);
 
         socket = vertx.createDatagramSocket(options);
         socket.listen(port, host, result -> {
