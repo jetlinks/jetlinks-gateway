@@ -9,6 +9,7 @@ import io.vertx.mqtt.MqttServerOptions;
 import io.vertx.mqtt.MqttTopicSubscription;
 import lombok.Getter;
 import lombok.Setter;
+import org.jetlinks.gateway.monitor.GatewayServerMonitor;
 import org.jetlinks.gateway.session.DeviceSession;
 import org.jetlinks.gateway.session.DeviceSessionManager;
 import org.jetlinks.protocol.ProtocolSupport;
@@ -17,13 +18,11 @@ import org.jetlinks.protocol.device.AuthenticationResponse;
 import org.jetlinks.protocol.device.DeviceOperation;
 import org.jetlinks.protocol.device.DeviceState;
 import org.jetlinks.protocol.device.MqttAuthenticationRequest;
-import org.jetlinks.protocol.message.DeviceMessageReply;
 import org.jetlinks.protocol.message.EmptyDeviceMessage;
 import org.jetlinks.protocol.message.codec.EncodedMessage;
 import org.jetlinks.protocol.message.DeviceMessage;
 import org.jetlinks.protocol.message.codec.FromDeviceMessageContext;
 import org.jetlinks.protocol.message.codec.Transport;
-import org.jetlinks.protocol.metadata.DeviceMetadata;
 import org.jetlinks.registry.api.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -63,6 +62,14 @@ public class MqttServer extends AbstractVerticle {
     @Setter
     private ProtocolSupports protocolSupports;
 
+    @Getter
+    @Setter
+    private GatewayServerMonitor gatewayServerMonitor;
+
+    @Getter
+    @Setter
+    private String publicServerAddress;
+
     @Override
     public void start() {
         Objects.requireNonNull(deviceSessionManager);
@@ -70,13 +77,18 @@ public class MqttServer extends AbstractVerticle {
         Objects.requireNonNull(mqttServerOptions);
         Objects.requireNonNull(vertx);
         Objects.requireNonNull(registry);
-
+        if (publicServerAddress == null) {
+            publicServerAddress = (mqttServerOptions.isSsl() ? "ssl://" : "tcp://") + "127.0.0.1:" + mqttServerOptions.getPort();
+        }
         io.vertx.mqtt.MqttServer mqttServer = io.vertx.mqtt.MqttServer.create(vertx, mqttServerOptions);
         mqttServer.endpointHandler(this::doConnect)
                 .exceptionHandler(err -> logger.error(err.getMessage(), err))
                 .listen(result -> {
                     if (result.succeeded()) {
                         int port = result.result().actualPort();
+                        if (gatewayServerMonitor != null) {
+                            gatewayServerMonitor.registerTransport(Transport.MQTT, publicServerAddress);
+                        }
                         logger.debug("MQTT server started on port {}", port);
                     } else {
                         logger.warn("MQTT server start failed", result.cause());

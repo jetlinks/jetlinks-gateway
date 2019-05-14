@@ -139,6 +139,12 @@
         </dependency>
 
         <dependency>
+            <groupId>org.redisson</groupId>
+            <artifactId>redisson</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <dependency>
             <groupId>org.jetlinks</groupId>
             <artifactId>coap-codec</artifactId>
             <version>${project.version}</version>
@@ -186,12 +192,6 @@
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <scope>provided</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>org.redisson</groupId>
-            <artifactId>redisson</artifactId>
-            <scope>test</scope>
         </dependency>
 
         <dependency>

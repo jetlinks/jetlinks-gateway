@@ -2,6 +2,7 @@ package org.jetlinks.gateway.session;
 
 import lombok.Getter;
 import lombok.Setter;
+import org.jetlinks.gateway.monitor.GatewayServerMonitor;
 import org.jetlinks.protocol.ProtocolSupports;
 import org.jetlinks.protocol.device.DeviceInfo;
 import org.jetlinks.protocol.device.DeviceOperation;
@@ -13,11 +14,11 @@ import org.jetlinks.protocol.message.DeviceMessage;
 import org.jetlinks.protocol.message.DeviceMessageReply;
 import org.jetlinks.protocol.message.codec.EncodedMessage;
 import org.jetlinks.protocol.message.codec.MessageEncodeContext;
+import org.jetlinks.protocol.message.codec.Transport;
 import org.jetlinks.protocol.message.function.FunctionInvokeMessage;
 import org.jetlinks.protocol.message.function.FunctionInvokeMessageReply;
 import org.jetlinks.protocol.message.property.ReadPropertyMessage;
 import org.jetlinks.protocol.message.property.ReadPropertyMessageReply;
-import org.jetlinks.protocol.metadata.DeviceMetadata;
 import org.jetlinks.protocol.metadata.FunctionMetadata;
 import org.jetlinks.protocol.utils.IdUtils;
 import org.jetlinks.registry.api.*;
@@ -26,7 +27,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -56,7 +57,7 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
 
     @Getter
     @Setter
-    private DeviceMonitor deviceMonitor;
+    private GatewayServerMonitor gatewayServerMonitor;
 
     @Getter
     @Setter
@@ -76,11 +77,11 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
 
     private Queue<Runnable> closeClientJobs = new LinkedBlockingQueue<>();
 
-    private AtomicInteger counter = new AtomicInteger();
+    private LongAdder counter = new LongAdder();
+
+    private Map<Transport, LongAdder> transportCounter = new ConcurrentHashMap<>();
 
     public void shutdown() {
-        deviceMonitor.reportDeviceCount(serverId, 0);
-        deviceMonitor.serverOffline(serverId);
         new ArrayList<>(repository.values())
                 .stream()
                 .map(DeviceSession::getId)
@@ -243,17 +244,20 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
             long closed = notAliveClients.size();
 
             notAliveClients.forEach(this::unregister);
-            //提交监控
-            deviceMonitor.reportDeviceCount(serverId, new HashSet<>(repository.values()).size());
+            for (Map.Entry<Transport, LongAdder> entry : transportCounter.entrySet()) {
+                //提交监控
+                gatewayServerMonitor.reportDeviceCount(entry.getKey(), entry.getValue().longValue());
+            }
 
             log.debug("当前节点设备连接数量:{},本次检查失效设备数量:{},集群中总连接设备数量:{}",
-                    counter.longValue(), closed, deviceMonitor.getDeviceCount());
+                    transportCounter, closed, gatewayServerMonitor.getDeviceCount());
 
             //执行任务
             for (Runnable runnable = closeClientJobs.poll(); runnable != null; runnable = closeClientJobs.poll()) {
                 runnable.run();
             }
         }, 10, 30, TimeUnit.SECONDS);
+
     }
 
     @Override
@@ -267,7 +271,10 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
         if (null != old) {
             old.close();
         } else {
-            counter.incrementAndGet();
+            transportCounter
+                    .computeIfAbsent(session.getTransport(), transport -> new LongAdder())
+                    .add(1);
+            counter.add(1);
         }
         if (!session.getId().equals(session.getDeviceId())) {
             repository.put(session.getId(), session);
@@ -286,7 +293,10 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
         DeviceSession client = repository.remove(idOrDeviceId);
 
         if (null != client) {
-            counter.decrementAndGet();
+            transportCounter
+                    .computeIfAbsent(client.getTransport(), transport -> new LongAdder())
+                    .add(-1);
+            counter.add(-1);
             if (!client.getId().equals(client.getDeviceId())) {
                 repository.remove(client.getId().equals(idOrDeviceId) ? client.getDeviceId() : client.getId());
             }

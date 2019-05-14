@@ -31,24 +31,23 @@ public abstract class TcpServer extends AbstractVerticle {
     @Setter
     private DeviceSessionManager deviceSessionManager;
 
-
     private Map<NetSocket, Long> waitAuthSocket = new ConcurrentHashMap<>();
 
     @Getter
     @Setter
-    private long authTimeout =TimeUnit.SECONDS.toMillis(10);
+    private long authTimeout = TimeUnit.SECONDS.toMillis(10);
 
     @Override
     public void start() {
         Objects.requireNonNull(options);
 //        Objects.requireNonNull(registry);
 //        Objects.requireNonNull(deviceSessionManager);
-
         vertx.createNetServer(options)
                 .connectHandler(this::handleConnection)
                 .listen(result -> {
                     if (result.succeeded()) {
                         int port = result.result().actualPort();
+
                         log.debug("TCP server started on port {}", port);
                     } else {
                         log.warn("TCP server start failed", result.cause());

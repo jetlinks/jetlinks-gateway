@@ -68,7 +68,7 @@ public class CoAPServerTest {
         Assert.assertTrue(startCountDown.await(5, TimeUnit.SECONDS));
 //        DatagramSocket socket = new DatagramSocket();
 //        socket.connect(new InetSocketAddress("127.0.0.1", port));
-        for (int i = 0; i < 10000; i++) {
+        for (int i = 0; i < 1000; i++) {
             messageCountDown.set(new CountDownLatch(1));
             String payload = "testmessage" + i;
 
