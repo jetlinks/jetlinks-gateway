@@ -30,6 +30,7 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.BiConsumer;
 
 /**
@@ -68,6 +69,13 @@ public class MqttServer extends AbstractVerticle {
 
     @Getter
     @Setter
+    //最大连接数= 最大分配内存(M) * 90
+    private long maxConnection = (Runtime.getRuntime().maxMemory() / 1024 / 1024) * 90;
+
+    private LongAdder currentConnection = new LongAdder();
+
+    @Getter
+    @Setter
     private String publicServerAddress;
 
     @Override
@@ -89,7 +97,7 @@ public class MqttServer extends AbstractVerticle {
                         if (gatewayServerMonitor != null) {
                             gatewayServerMonitor.registerTransport(Transport.MQTT, publicServerAddress);
                         }
-                        logger.debug("MQTT server started on port {}", port);
+                        logger.debug("MQTT server started on port {},max connect {}", port, maxConnection);
                     } else {
                         logger.warn("MQTT server start failed", result.cause());
                     }
@@ -99,6 +107,12 @@ public class MqttServer extends AbstractVerticle {
     protected void doConnect(MqttEndpoint endpoint) {
         if (endpoint.auth() == null) {
             endpoint.reject(MqttConnectReturnCode.CONNECTION_REFUSED_NOT_AUTHORIZED);
+            return;
+        }
+        if (currentConnection.longValue() >= maxConnection) {
+            //服务繁忙
+            logger.warn("拒绝客户端连接[{}],已超过最大连接数:[{}]", endpoint.clientIdentifier(), maxConnection);
+            endpoint.reject(MqttConnectReturnCode.CONNECTION_REFUSED_SERVER_UNAVAILABLE);
             return;
         }
         String clientId = endpoint.clientIdentifier();
@@ -119,16 +133,18 @@ public class MqttServer extends AbstractVerticle {
             ProtocolSupport protocolSupport = getProtocol(protocol);
             MqttDeviceSession session = new MqttDeviceSession(endpoint, operation, protocolSupport);
             accept(endpoint, session);
+            currentConnection.increment();
         } else if (401 == response.getCode()) {
-            logger.debug("设备[{}]认证未通过", clientId, response);
+            logger.debug("设备[{}]认证未通过:{}", clientId, response);
             endpoint.reject(MqttConnectReturnCode.CONNECTION_REFUSED_BAD_USER_NAME_OR_PASSWORD);
         } else {
-            logger.warn("设备[{}]认证失败", clientId, response);
+            logger.warn("设备[{}]认证失败:{}", clientId, response);
             endpoint.reject(MqttConnectReturnCode.CONNECTION_REFUSED_SERVER_UNAVAILABLE);
         }
     }
 
     protected void doCloseEndpoint(MqttEndpoint client) {
+        currentConnection.decrement();
         String clientId = client.clientIdentifier();
         logger.debug("关闭客户端[{}]MQTT连接", clientId);
         DeviceSession old = deviceSessionManager.unregister(clientId);
