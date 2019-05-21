@@ -92,7 +92,6 @@ public class RedissonGatewayServerMonitor implements GatewayServerMonitor {
             }
         };
     }
-
     @Override
     public GatewayServerInfo getCurrentServerInfo() {
         return newGatewayServerInfo(currentServerId);
@@ -178,7 +177,7 @@ public class RedissonGatewayServerMonitor implements GatewayServerMonitor {
                     .filter(Objects::nonNull)
                     .forEach(this::serverOffline);
 
-        }, 0, Math.max(1, timeToLive - 1), TimeUnit.SECONDS);
+        }, 10, Math.max(1, timeToLive - 1), TimeUnit.SECONDS);
 
 
     }

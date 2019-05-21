@@ -31,6 +31,8 @@ import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static java.util.Optional.*;
+
 /**
  * @author zhouhao
  * @since 1.0.0
@@ -80,6 +82,32 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
     private LongAdder counter = new LongAdder();
 
     private Map<Transport, LongAdder> transportCounter = new ConcurrentHashMap<>();
+
+    @Getter
+    @Setter
+    private Map<Transport, Long> transportLimits = new ConcurrentHashMap<>();
+
+    public void setTransportLimit(Transport transport, long limit) {
+        transportLimits.put(transport, limit);
+    }
+
+    @Override
+    public long getMaximumConnection(Transport transport) {
+        return ofNullable(transportLimits.get(transport)).orElse(Long.MAX_VALUE);
+    }
+
+    @Override
+    public long getCurrentConnection(Transport transport) {
+        return ofNullable(transportCounter.get(transport))
+                .map(LongAdder::longValue)
+                .orElse(0L);
+    }
+
+    @Override
+    public boolean isOutOfMaximumConnectionLimit(Transport transport) {
+
+        return getCurrentConnection(transport) >= getMaximumConnection(transport);
+    }
 
     public void shutdown() {
         new ArrayList<>(repository.values())
