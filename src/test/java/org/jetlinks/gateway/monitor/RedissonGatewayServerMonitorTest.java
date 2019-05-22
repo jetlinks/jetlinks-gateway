@@ -58,6 +58,8 @@ public class RedissonGatewayServerMonitorTest {
 
         Assert.assertEquals(info.getDeviceConnectionTotal(Transport.MQTT), 100);
         Assert.assertEquals(info.getDeviceConnectionTotal(), 300);
+        Assert.assertEquals(monitor.getDeviceCount(), 300);
+        Assert.assertEquals(monitor.getDeviceCount("test"), 300);
 
 
         Assert.assertTrue(info.getAllTransport().contains(Transport.MQTT));

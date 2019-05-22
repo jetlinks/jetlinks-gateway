@@ -138,7 +138,8 @@ public class RedissonGatewayServerMonitor implements GatewayServerMonitor {
 
     @Override
     public void reportDeviceCount(Transport transport, long count) {
-        client.getAtomicLong(getRedisKey(transport_connection_total, currentServerId, transport.name())).set(count);
+        client.getAtomicLong(getRedisKey(transport_connection_total, currentServerId, transport.name()))
+                .set(count);
     }
 
     @Override
