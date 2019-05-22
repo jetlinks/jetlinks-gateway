@@ -2,6 +2,7 @@ package org.jetlinks.gateway.session;
 
 import lombok.Getter;
 import lombok.Setter;
+import org.apache.commons.lang.StringUtils;
 import org.jetlinks.gateway.monitor.GatewayServerMonitor;
 import org.jetlinks.protocol.ProtocolSupports;
 import org.jetlinks.protocol.device.DeviceInfo;
@@ -77,7 +78,7 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
     @Setter
     private Consumer<DeviceSession> onDeviceUnRegister;
 
-    private Queue<Runnable> closeClientJobs = new LinkedBlockingQueue<>();
+    private Queue<Runnable> closeClientJobs = new ArrayDeque<>();
 
     private LongAdder counter = new LongAdder();
 
@@ -156,6 +157,27 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
                         .build());
             }
         }
+    }
+
+    public void handleDeviceMessageReply(DeviceSession session, DeviceMessageReply reply) {
+        if (reply instanceof FunctionInvokeMessageReply) {
+            FunctionInvokeMessageReply message = ((FunctionInvokeMessageReply) reply);
+            //判断是否为异步操作，如果不异步的，则需要同步回复结果
+            boolean async = session.getOperation()
+                    .getMetadata()
+                    .getFunction(message.getFunctionId())
+                    .map(FunctionMetadata::isAsync)
+                    .orElse(false);
+            //同步操作则直接返回
+            if (!async) {
+                if (StringUtils.isEmpty(message.getMessageId())) {
+                    log.warn("消息无messageId:{}", message.toJson());
+                    return;
+                }
+                deviceMessageHandler.reply(message);
+            }
+        }
+
     }
 
     protected DeviceMessage createChildDeviceMessage(DeviceOperation childDevice, DeviceMessage message) {
@@ -242,7 +264,7 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
                                     .messageSender()
                                     .send(childMessage, obj -> createChildDeviceMessageReply(message, obj))
                                     .toCompletableFuture()
-                                    .get(10, TimeUnit.SECONDS);
+                                    .get(30, TimeUnit.SECONDS);
                         } catch (TimeoutException e) {
                             reply = createChildDeviceMessageReply(message, null);
                             reply.error(ErrorCode.TIME_OUT);

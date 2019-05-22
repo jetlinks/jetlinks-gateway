@@ -11,6 +11,7 @@ import org.jetlinks.gateway.vertx.tcp.message.TcpMessageCodec;
 import org.jetlinks.protocol.ProtocolSupports;
 import org.jetlinks.protocol.device.DeviceOperation;
 import org.jetlinks.protocol.message.DeviceMessage;
+import org.jetlinks.protocol.message.DeviceMessageReply;
 import org.jetlinks.protocol.message.EmptyDeviceMessage;
 import org.jetlinks.protocol.message.codec.EncodedMessage;
 import org.jetlinks.protocol.message.codec.FromDeviceMessageContext;
@@ -116,6 +117,10 @@ public abstract class DefaultTcpServer extends TcpServer {
                 }
                 if (null != deviceMessageHandler) {
                     deviceMessageHandler.accept(session, deviceMessage);
+                }
+                if(deviceMessage instanceof DeviceMessageReply){
+                    getDeviceSessionManager()
+                            .handleDeviceMessageReply(session,((DeviceMessageReply) deviceMessage));
                 }
 
             }

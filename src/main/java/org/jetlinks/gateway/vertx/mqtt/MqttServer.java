@@ -18,6 +18,7 @@ import org.jetlinks.protocol.device.AuthenticationResponse;
 import org.jetlinks.protocol.device.DeviceOperation;
 import org.jetlinks.protocol.device.DeviceState;
 import org.jetlinks.protocol.device.MqttAuthenticationRequest;
+import org.jetlinks.protocol.message.DeviceMessageReply;
 import org.jetlinks.protocol.message.EmptyDeviceMessage;
 import org.jetlinks.protocol.message.codec.EncodedMessage;
 import org.jetlinks.protocol.message.DeviceMessage;
@@ -217,6 +218,11 @@ public class MqttServer extends AbstractVerticle {
                                     });
                             if (!(deviceMessage instanceof EmptyDeviceMessage)) {
                                 messageConsumer.accept(session, deviceMessage);
+                            }
+                            //处理消息回复
+                            if (deviceMessage instanceof DeviceMessageReply) {
+                                getDeviceSessionManager()
+                                        .handleDeviceMessageReply(session, ((DeviceMessageReply) deviceMessage));
                             }
                         } catch (Throwable e) {
                             logger.error("处理设备[{}]消息[{}]:\n{}\n失败", clientId, topicName, buffer.toString(), e);

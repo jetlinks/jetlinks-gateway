@@ -1,5 +1,6 @@
 package org.jetlinks.gateway.session;
 
+import org.jetlinks.protocol.message.DeviceMessageReply;
 import org.jetlinks.protocol.message.codec.Transport;
 
 /**
@@ -15,6 +16,8 @@ public interface DeviceSessionManager {
     DeviceSession unregister(String idOrDeviceId);
 
     String getServerId();
+
+    void handleDeviceMessageReply(DeviceSession session, DeviceMessageReply reply);
 
     boolean isOutOfMaximumConnectionLimit(Transport transport);
 
