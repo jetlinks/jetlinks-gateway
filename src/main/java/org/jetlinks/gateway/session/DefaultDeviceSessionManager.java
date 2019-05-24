@@ -295,7 +295,7 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
 
             notAliveClients.forEach(this::unregister);
             for (Map.Entry<Transport, LongAdder> entry : transportCounter.entrySet()) {
-                //提交监控
+                //提交当前节点的监控
                 gatewayServerMonitor.reportDeviceCount(entry.getKey(), entry.getValue().longValue());
             }
 
