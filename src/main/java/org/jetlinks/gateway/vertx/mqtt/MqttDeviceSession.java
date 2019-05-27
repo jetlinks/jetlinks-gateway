@@ -6,11 +6,11 @@ import io.vertx.mqtt.MqttEndpoint;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.jetlinks.gateway.session.DeviceSession;
-import org.jetlinks.protocol.ProtocolSupport;
-import org.jetlinks.protocol.message.codec.EncodedMessage;
-import org.jetlinks.protocol.message.codec.MqttMessage;
-import org.jetlinks.protocol.message.codec.Transport;
-import org.jetlinks.protocol.device.DeviceOperation;
+import org.jetlinks.core.ProtocolSupport;
+import org.jetlinks.core.message.codec.EncodedMessage;
+import org.jetlinks.core.message.codec.MqttMessage;
+import org.jetlinks.core.message.codec.Transport;
+import org.jetlinks.core.device.DeviceOperation;
 
 import java.nio.charset.StandardCharsets;
 

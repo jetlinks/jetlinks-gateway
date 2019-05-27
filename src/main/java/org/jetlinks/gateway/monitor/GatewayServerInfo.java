@@ -1,6 +1,6 @@
 package org.jetlinks.gateway.monitor;
 
-import org.jetlinks.protocol.message.codec.Transport;
+import org.jetlinks.core.message.codec.Transport;
 
 import java.util.List;
 import java.util.Map;

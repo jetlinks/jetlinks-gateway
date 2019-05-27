@@ -7,14 +7,8 @@ import io.vertx.core.datagram.DatagramSocketOptions;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.jetlinks.gateway.session.DeviceSession;
-import org.jetlinks.gateway.session.DeviceSessionManager;
-import org.jetlinks.protocol.ProtocolSupports;
-import org.jetlinks.protocol.message.DeviceMessage;
-import org.jetlinks.registry.api.*;
 
 import java.util.Objects;
-import java.util.function.BiConsumer;
 
 /**
  * @author zhouhao

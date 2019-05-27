@@ -1,9 +1,9 @@
 package org.jetlinks.gateway.session;
 
-import org.jetlinks.protocol.ProtocolSupport;
-import org.jetlinks.protocol.message.codec.EncodedMessage;
-import org.jetlinks.protocol.message.codec.Transport;
-import org.jetlinks.protocol.device.DeviceOperation;
+import org.jetlinks.core.ProtocolSupport;
+import org.jetlinks.core.message.codec.EncodedMessage;
+import org.jetlinks.core.message.codec.Transport;
+import org.jetlinks.core.device.DeviceOperation;
 
 /**
  * @author zhouhao

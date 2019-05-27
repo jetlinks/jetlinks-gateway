@@ -3,7 +3,7 @@ package org.jetlinks.gateway.monitor;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.jetlinks.protocol.message.codec.Transport;
+import org.jetlinks.core.message.codec.Transport;
 import org.redisson.api.RMap;
 import org.redisson.api.RedissonClient;
 

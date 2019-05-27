@@ -1,7 +1,7 @@
 package org.jetlinks.gateway.session;
 
-import org.jetlinks.protocol.message.DeviceMessageReply;
-import org.jetlinks.protocol.message.codec.Transport;
+import org.jetlinks.core.message.DeviceMessageReply;
+import org.jetlinks.core.message.codec.Transport;
 
 /**
  * @author zhouhao

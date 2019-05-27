@@ -2,7 +2,7 @@ package org.jetlinks.gateway.vertx.tcp;
 
 import lombok.Getter;
 import lombok.Setter;
-import org.jetlinks.protocol.device.AuthenticationResponse;
+import org.jetlinks.core.device.AuthenticationResponse;
 
 @Getter
 @Setter

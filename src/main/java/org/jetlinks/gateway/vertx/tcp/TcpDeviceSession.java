@@ -5,10 +5,10 @@ import io.vertx.core.net.NetSocket;
 import lombok.Getter;
 import lombok.Setter;
 import org.jetlinks.gateway.session.DeviceSession;
-import org.jetlinks.protocol.ProtocolSupport;
-import org.jetlinks.protocol.device.DeviceOperation;
-import org.jetlinks.protocol.message.codec.EncodedMessage;
-import org.jetlinks.protocol.message.codec.Transport;
+import org.jetlinks.core.ProtocolSupport;
+import org.jetlinks.core.device.DeviceOperation;
+import org.jetlinks.core.message.codec.EncodedMessage;
+import org.jetlinks.core.message.codec.Transport;
 
 import java.util.concurrent.TimeUnit;
 

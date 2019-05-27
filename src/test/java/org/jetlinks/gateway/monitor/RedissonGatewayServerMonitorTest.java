@@ -2,15 +2,13 @@ package org.jetlinks.gateway.monitor;
 
 import lombok.SneakyThrows;
 import org.jetlinks.gateway.vertx.mqtt.RedissonHelper;
-import org.jetlinks.protocol.message.codec.Transport;
+import org.jetlinks.core.message.codec.Transport;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.util.concurrent.Executors;
-
-import static org.junit.Assert.*;
 
 public class RedissonGatewayServerMonitorTest {
 
