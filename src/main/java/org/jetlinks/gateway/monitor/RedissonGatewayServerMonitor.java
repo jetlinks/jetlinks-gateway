@@ -117,7 +117,7 @@ public class RedissonGatewayServerMonitor implements GatewayServerMonitor {
 
     @Override
     public void serverOffline(String serverId) {
-        log.debug("gateway server [{}] offline ", serverId);
+        log.debug("device gateway server [{}] offline ", serverId);
         allServerId.fastRemove(serverId);
 
         client.<Transport>getSet(getRedisKey(transport_all_support, serverId))
@@ -168,7 +168,7 @@ public class RedissonGatewayServerMonitor implements GatewayServerMonitor {
         allServerId.put(currentServerId, System.currentTimeMillis());
 
         executorService.scheduleAtFixedRate(() -> {
-            log.debug("gateway server [{}] keepalive", currentServerId);
+            log.debug("device gateway server [{}] keepalive", currentServerId);
             allServerId.put(currentServerId, System.currentTimeMillis());
 
             allServerId.entrySet()

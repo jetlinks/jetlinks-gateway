@@ -107,7 +107,7 @@ public class MqttServer extends AbstractVerticle {
             return;
         }
         if (deviceSessionManager.isOutOfMaximumConnectionLimit(Transport.MQTT)) {
-            //服务繁忙
+            //当前连接超过了最大连接数
             logger.warn("拒绝客户端连接[{}],已超过最大连接数限制:[{}]!", endpoint.clientIdentifier(), deviceSessionManager.getMaximumConnection(Transport.MQTT));
             endpoint.reject(MqttConnectReturnCode.CONNECTION_REFUSED_SERVER_UNAVAILABLE);
             return;

@@ -106,7 +106,6 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
 
     @Override
     public boolean isOutOfMaximumConnectionLimit(Transport transport) {
-
         return getCurrentConnection(transport) >= getMaximumConnection(transport);
     }
 
@@ -278,6 +277,7 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
                 } else {
                     //设备不在当前服务器节点
                     log.warn("设备[{}]未连接服务器[{}],无法发送消息:{}", deviceId, serverId, message.toJson());
+                    operation.checkState();
                     DeviceMessageReply reply = createChildDeviceMessageReply(message, null);
                     reply.error(ErrorCode.CLIENT_OFFLINE);
                     deviceMessageHandler.reply(reply);

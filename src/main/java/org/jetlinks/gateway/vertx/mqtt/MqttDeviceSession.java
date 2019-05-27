@@ -81,7 +81,7 @@ public class MqttDeviceSession implements DeviceSession {
             ping();
             Buffer buffer = Buffer.buffer(message.getByteBuf());
             if (log.isDebugEnabled()) {
-                log.debug("发送消息到客户端[{}]=>[{}]:{}", message.getTopic(), getDeviceId(), buffer.toString(StandardCharsets.UTF_8));
+                log.debug("发送消息到MQTT客户端[{}]=>[{}]:{}", message.getTopic(), getDeviceId(), buffer.toString(StandardCharsets.UTF_8));
             }
             endpoint.publish(message.getTopic(), buffer, MqttQoS.valueOf(message.getQosLevel()), false, false);
         } else {
