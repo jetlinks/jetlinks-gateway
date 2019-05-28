@@ -60,11 +60,12 @@ public class MqttServerTest {
 
         deviceInfo.setId("test");
         deviceInfo.setType((byte) 1);
+        deviceInfo.setProtocol("test");
 
         ScheduledExecutorService executorService = Executors.newScheduledThreadPool(6);
         RedissonDeviceMessageHandler handler = new RedissonDeviceMessageHandler(client);
         DefaultDeviceSessionManager deviceSessionManager = new DefaultDeviceSessionManager();
-        RedissonGatewayServerMonitor monitor=    new RedissonGatewayServerMonitor("test",client,executorService);
+        RedissonGatewayServerMonitor monitor = new RedissonGatewayServerMonitor("test", client, executorService);
         monitor.startup();
         deviceSessionManager.setGatewayServerMonitor(monitor);
         deviceSessionManager.setDeviceMessageHandler(deviceMessageHandler = handler);
@@ -100,7 +101,7 @@ public class MqttServerTest {
     public void testMqtt() {
         CountDownLatch startCountdown = new CountDownLatch(1);
 
-        int port = 11884;
+        int port = 11882;
 
         DeviceOperation operation = startServer(port,
                 success -> startCountdown.countDown(),
@@ -126,12 +127,14 @@ public class MqttServerTest {
                 client.publish("/read-property-reply", Buffer.buffer(jsonObject.toJSONString().getBytes()),
                         MqttQoS.AT_MOST_ONCE, false, false);
             }
-        }).connect(port, "127.0.0.1", result -> {
-            if (!result.succeeded()) {
-                result.cause().printStackTrace();
-            }
-            connectCountDown.countDown();
-        });
+        })
+                .exceptionHandler(Throwable::printStackTrace)
+                .connect(port, "127.0.0.1", result -> {
+                    if (!result.succeeded()) {
+                        result.cause().printStackTrace();
+                    }
+                    connectCountDown.countDown();
+                });
         Assert.assertTrue(connectCountDown.await(5, TimeUnit.SECONDS));
         ReadPropertyMessageReply reply = operation.messageSender()
                 .readProperty("test")
