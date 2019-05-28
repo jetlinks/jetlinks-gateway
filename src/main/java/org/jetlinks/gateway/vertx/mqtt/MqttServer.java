@@ -9,6 +9,7 @@ import io.vertx.mqtt.MqttServerOptions;
 import io.vertx.mqtt.MqttTopicSubscription;
 import lombok.Getter;
 import lombok.Setter;
+import org.jetlinks.core.device.registry.DeviceRegistry;
 import org.jetlinks.gateway.monitor.GatewayServerMonitor;
 import org.jetlinks.gateway.session.DeviceSession;
 import org.jetlinks.gateway.session.DeviceSessionManager;
@@ -24,7 +25,6 @@ import org.jetlinks.core.message.codec.EncodedMessage;
 import org.jetlinks.core.message.DeviceMessage;
 import org.jetlinks.core.message.codec.FromDeviceMessageContext;
 import org.jetlinks.core.message.codec.Transport;
-import org.jetlinks.registry.api.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

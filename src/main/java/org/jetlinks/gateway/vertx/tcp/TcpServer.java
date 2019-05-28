@@ -7,9 +7,9 @@ import io.vertx.core.net.NetSocket;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.jetlinks.core.device.registry.DeviceRegistry;
 import org.jetlinks.gateway.session.DeviceSession;
 import org.jetlinks.gateway.session.DeviceSessionManager;
-import org.jetlinks.registry.api.DeviceRegistry;
 
 import java.util.Map;
 import java.util.Objects;

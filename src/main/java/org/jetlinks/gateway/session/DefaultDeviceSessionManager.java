@@ -3,6 +3,8 @@ package org.jetlinks.gateway.session;
 import lombok.Getter;
 import lombok.Setter;
 import org.apache.commons.lang.StringUtils;
+import org.jetlinks.core.device.registry.DeviceMessageHandler;
+import org.jetlinks.core.device.registry.DeviceRegistry;
 import org.jetlinks.gateway.monitor.GatewayServerMonitor;
 import org.jetlinks.core.ProtocolSupports;
 import org.jetlinks.core.device.DeviceInfo;
@@ -22,7 +24,6 @@ import org.jetlinks.core.message.property.ReadPropertyMessage;
 import org.jetlinks.core.message.property.ReadPropertyMessageReply;
 import org.jetlinks.core.metadata.FunctionMetadata;
 import org.jetlinks.core.utils.IdUtils;
-import org.jetlinks.registry.api.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
