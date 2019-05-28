@@ -62,7 +62,7 @@ public class MqttServerTest {
         deviceInfo.setType((byte) 1);
 
         ScheduledExecutorService executorService = Executors.newScheduledThreadPool(6);
-        RedissonDeviceMessageHandler handler = new RedissonDeviceMessageHandler(client, executorService);
+        RedissonDeviceMessageHandler handler = new RedissonDeviceMessageHandler(client);
         DefaultDeviceSessionManager deviceSessionManager = new DefaultDeviceSessionManager();
         RedissonGatewayServerMonitor monitor=    new RedissonGatewayServerMonitor("test",client,executorService);
         monitor.startup();

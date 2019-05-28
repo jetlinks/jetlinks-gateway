@@ -5,9 +5,6 @@ import io.vertx.core.net.NetSocket;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.jetlinks.gateway.session.DeviceSession;
-import org.jetlinks.gateway.vertx.tcp.message.MessageType;
-import org.jetlinks.gateway.vertx.tcp.message.TcpMessageCodec;
 import org.jetlinks.core.ProtocolSupports;
 import org.jetlinks.core.device.DeviceOperation;
 import org.jetlinks.core.message.DeviceMessage;
@@ -16,8 +13,10 @@ import org.jetlinks.core.message.EmptyDeviceMessage;
 import org.jetlinks.core.message.codec.EncodedMessage;
 import org.jetlinks.core.message.codec.FromDeviceMessageContext;
 import org.jetlinks.core.message.codec.Transport;
+import org.jetlinks.gateway.session.DeviceSession;
+import org.jetlinks.gateway.vertx.tcp.message.MessageType;
+import org.jetlinks.gateway.vertx.tcp.message.TcpMessageCodec;
 
-import java.util.Optional;
 import java.util.function.BiConsumer;
 
 @Slf4j
@@ -57,8 +56,7 @@ public abstract class DefaultTcpServer extends TcpServer {
 
     protected void handlePing(NetSocket socket) {
         log.info("TCP ping from [{}] ", socket.remoteAddress());
-        String id = createClientId(socket);
-        Optional.ofNullable(getRegistry().getDevice(id)).ifPresent(DeviceOperation::ping);
+        // String id = createClientId(socket);
     }
 
     protected void handleMessage(NetSocket socket, MessageType messageType, Buffer payload) {
@@ -77,7 +75,7 @@ public abstract class DefaultTcpServer extends TcpServer {
                 session.setId(createClientId(socket));
                 session.setDeviceId(response.getDeviceId());
                 session.setOperation(operation);
-                session.setProtocolSupport(protocolSupports.getProtocol(operation.getDeviceInfo().getProtocol()));
+                session.setProtocolSupport(operation.getProtocol());
                 session.setSocket(socket);
                 acceptConnect(session);
             }

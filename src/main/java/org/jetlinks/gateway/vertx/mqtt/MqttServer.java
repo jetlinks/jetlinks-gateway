@@ -9,22 +9,21 @@ import io.vertx.mqtt.MqttServerOptions;
 import io.vertx.mqtt.MqttTopicSubscription;
 import lombok.Getter;
 import lombok.Setter;
-import org.jetlinks.core.device.registry.DeviceRegistry;
-import org.jetlinks.gateway.monitor.GatewayServerMonitor;
-import org.jetlinks.gateway.session.DeviceSession;
-import org.jetlinks.gateway.session.DeviceSessionManager;
-import org.jetlinks.core.ProtocolSupport;
 import org.jetlinks.core.ProtocolSupports;
 import org.jetlinks.core.device.AuthenticationResponse;
 import org.jetlinks.core.device.DeviceOperation;
 import org.jetlinks.core.device.DeviceState;
 import org.jetlinks.core.device.MqttAuthenticationRequest;
+import org.jetlinks.core.device.registry.DeviceRegistry;
+import org.jetlinks.core.message.DeviceMessage;
 import org.jetlinks.core.message.DeviceMessageReply;
 import org.jetlinks.core.message.EmptyDeviceMessage;
 import org.jetlinks.core.message.codec.EncodedMessage;
-import org.jetlinks.core.message.DeviceMessage;
 import org.jetlinks.core.message.codec.FromDeviceMessageContext;
 import org.jetlinks.core.message.codec.Transport;
+import org.jetlinks.gateway.monitor.GatewayServerMonitor;
+import org.jetlinks.gateway.session.DeviceSession;
+import org.jetlinks.gateway.session.DeviceSessionManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -125,9 +124,7 @@ public class MqttServer extends AbstractVerticle {
         ));
         //授权通过
         if (response.isSuccess()) {
-            String protocol = operation.getDeviceInfo().getProtocol();
-            ProtocolSupport protocolSupport = getProtocol(protocol);
-            MqttDeviceSession session = new MqttDeviceSession(endpoint, operation, protocolSupport);
+            MqttDeviceSession session = new MqttDeviceSession(endpoint, operation, operation.getProtocol());
             accept(endpoint, session);
         } else if (401 == response.getCode()) {
             logger.debug("设备[{}]认证未通过:{}", clientId, response);
@@ -147,10 +144,6 @@ public class MqttServer extends AbstractVerticle {
                 client.close();
             }
         }
-    }
-
-    protected ProtocolSupport getProtocol(String protocol) {
-        return protocolSupports.getProtocol(protocol);
     }
 
     protected void accept(MqttEndpoint endpoint, MqttDeviceSession session) {

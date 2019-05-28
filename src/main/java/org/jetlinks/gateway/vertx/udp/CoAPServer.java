@@ -9,17 +9,16 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.jetlinks.coap.CoapPacket;
 import org.jetlinks.coap.exception.CoapException;
-import org.jetlinks.core.device.registry.DeviceRegistry;
-import org.jetlinks.gateway.session.DeviceSession;
-import org.jetlinks.gateway.session.DeviceSessionManager;
 import org.jetlinks.core.ProtocolSupports;
+import org.jetlinks.core.device.DeviceOperation;
+import org.jetlinks.core.device.registry.DeviceRegistry;
 import org.jetlinks.core.message.DeviceMessage;
 import org.jetlinks.core.message.codec.CoAPMessage;
 import org.jetlinks.core.message.codec.EncodedMessage;
 import org.jetlinks.core.message.codec.FromDeviceMessageContext;
 import org.jetlinks.core.message.codec.Transport;
-import org.jetlinks.core.device.DeviceInfo;
-import org.jetlinks.core.device.DeviceOperation;
+import org.jetlinks.gateway.session.DeviceSession;
+import org.jetlinks.gateway.session.DeviceSessionManager;
 
 import java.util.function.BiConsumer;
 
@@ -61,14 +60,16 @@ public abstract class CoAPServer extends UDPServer {
     }
 
     protected void handleCoAPMessage(SocketAddress address, CoapPacket packet) {
-        log.info("接受到CoAP消息:{}", address.host(), address.port(), packet.toString(true, false, true, false));
+        if (log.isInfoEnabled()) {
+            log.info("接受到CoAP消息: [{}:{}] {}", address.host(),
+                    address.port(),
+                    packet.toString(true, false, true, false));
+        }
         UDPDeviceSession session = getDevice(address, packet);
         if (session != null) {
             DeviceOperation deviceOperation = session.getOperation();
-            DeviceInfo deviceInfo = deviceOperation.getDeviceInfo();
-            String protocol = deviceInfo.getProtocol();
-            CoAPMessage coapMessage = new CoAPMessage(deviceInfo.getId(), packet);
-            DeviceMessage message = protocolSupports.getProtocol(protocol)
+            CoAPMessage coapMessage = new CoAPMessage(session.getDeviceId(), packet);
+            DeviceMessage message = deviceOperation.getProtocol()
                     .getMessageCodec()
                     .decode(Transport.CoAP, new FromDeviceMessageContext() {
 
@@ -84,7 +85,7 @@ public abstract class CoAPServer extends UDPServer {
 
                         @Override
                         public void disconnect() {
-                            unregisterClient(deviceInfo.getId());
+                            unregisterClient(session.getDeviceId());
                         }
 
                         @Override

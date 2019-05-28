@@ -3,37 +3,34 @@ package org.jetlinks.gateway.session;
 import lombok.Getter;
 import lombok.Setter;
 import org.apache.commons.lang.StringUtils;
-import org.jetlinks.core.device.registry.DeviceMessageHandler;
-import org.jetlinks.core.device.registry.DeviceRegistry;
-import org.jetlinks.gateway.monitor.GatewayServerMonitor;
 import org.jetlinks.core.ProtocolSupports;
 import org.jetlinks.core.device.DeviceInfo;
 import org.jetlinks.core.device.DeviceOperation;
 import org.jetlinks.core.device.DeviceState;
+import org.jetlinks.core.device.registry.DeviceMessageHandler;
+import org.jetlinks.core.device.registry.DeviceRegistry;
 import org.jetlinks.core.enums.ErrorCode;
-import org.jetlinks.core.message.ChildDeviceMessage;
-import org.jetlinks.core.message.CommonDeviceMessageReply;
-import org.jetlinks.core.message.DeviceMessage;
-import org.jetlinks.core.message.DeviceMessageReply;
+import org.jetlinks.core.message.*;
 import org.jetlinks.core.message.codec.EncodedMessage;
 import org.jetlinks.core.message.codec.MessageEncodeContext;
 import org.jetlinks.core.message.codec.Transport;
 import org.jetlinks.core.message.function.FunctionInvokeMessage;
 import org.jetlinks.core.message.function.FunctionInvokeMessageReply;
-import org.jetlinks.core.message.property.ReadPropertyMessage;
-import org.jetlinks.core.message.property.ReadPropertyMessageReply;
 import org.jetlinks.core.metadata.FunctionMetadata;
 import org.jetlinks.core.utils.IdUtils;
+import org.jetlinks.gateway.monitor.GatewayServerMonitor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import static java.util.Optional.*;
+import static java.util.Optional.ofNullable;
 
 /**
  * @author zhouhao
@@ -119,10 +116,8 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
 
     protected void doSend(DeviceMessage message, DeviceSession session) {
         String deviceId = message.getDeviceId();
-        DeviceOperation operation = deviceRegistry.getDevice(deviceId);
         //获取协议并转码
-        EncodedMessage encodedMessage = protocolSupports
-                .getProtocol(operation.getDeviceInfo().getProtocol())
+        EncodedMessage encodedMessage = session.getProtocolSupport()
                 .getMessageCodec()
                 .encode(session.getTransport(), new MessageEncodeContext() {
                     @Override
@@ -132,7 +127,7 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
 
                     @Override
                     public DeviceOperation getDeviceOperation() {
-                        return operation;
+                        return deviceRegistry.getDevice(deviceId);
                     }
                 });
         //发往设备
@@ -193,42 +188,32 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
     }
 
     public DeviceMessageReply createChildDeviceMessageReply(DeviceMessage source, Object reply) {
-        CommonDeviceMessageReply messageReply = null;
-        if (source instanceof ReadPropertyMessage) {
-            if (reply == null || reply instanceof ErrorCode) {
-                messageReply = new ReadPropertyMessageReply();
-                messageReply.setMessageId(source.getMessageId());
-                messageReply.setDeviceId(source.getDeviceId());
-            } else if (reply instanceof ReadPropertyMessageReply) {
-                messageReply = ((ReadPropertyMessageReply) reply);
-            }
 
-        } else if (source instanceof FunctionInvokeMessage) {
-            if (reply == null || reply instanceof ErrorCode) {
-                messageReply = new FunctionInvokeMessageReply();
-                messageReply.setMessageId(source.getMessageId());
-                messageReply.setDeviceId(source.getDeviceId());
-            } else if (reply instanceof FunctionInvokeMessageReply) {
-                messageReply = ((FunctionInvokeMessageReply) reply);
-            }
-        } else if (reply instanceof DeviceMessageReply) {
-            return (DeviceMessageReply) reply;
-        } else {
-            if (reply == null || reply instanceof ErrorCode) {
-                messageReply = new CommonDeviceMessageReply();
-                messageReply.setMessageId(source.getMessageId());
-                messageReply.setDeviceId(source.getDeviceId());
-            } else {
-                throw new UnsupportedOperationException("不支持的消息[" + reply.getClass() + "]:" + reply);
-            }
+        if (reply instanceof DeviceMessageReply) {
+
+            ((DeviceMessageReply) reply).from(source);
+
+            return ((DeviceMessageReply) reply);
         }
-        if (reply instanceof ErrorCode) {
-            messageReply.error((ErrorCode) reply);
+        if (source instanceof RepayableDeviceMessage) {
+            DeviceMessageReply deviceMessageReply = ((RepayableDeviceMessage) source).newReply();
+            deviceMessageReply.from(source);
+
+            if (reply instanceof ErrorCode) {
+                deviceMessageReply.error(((ErrorCode) reply));
+            }
+            return deviceMessageReply;
         }
-        return messageReply;
+
+        log.warn("不支持的子设备消息回复:source:{} reply: {}", source, reply);
+        CommonDeviceMessageReply error = new CommonDeviceMessageReply();
+        error.from(source);
+        error.error(ErrorCode.UNSUPPORTED_MESSAGE);
+        return error;
     }
 
     public void init() {
+        //处理设备状态检查
         deviceMessageHandler.handleDeviceCheck(serverId, deviceId -> {
             DeviceSession session = repository.get(deviceId);
             DeviceOperation operation = deviceRegistry.getDevice(deviceId);
@@ -253,31 +238,26 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
                 if (null != parentId && !parentId.isEmpty()) {
                     DeviceMessage childMessage = createChildDeviceMessage(operation, message);
                     session = repository.get(parentId);
-                    //网关设备就在当前服务器
+                    //父设备就在当前服务器
                     if (session != null) {
                         doSend(childMessage, session);
                     } else {
-                        DeviceMessageReply reply;
-                        try {
-                            //向父设备发送消息
-                            reply = deviceRegistry.getDevice(parentId)
-                                    .messageSender()
-                                    .send(childMessage, obj -> createChildDeviceMessageReply(message, obj))
-                                    .toCompletableFuture()
-                                    .get(30, TimeUnit.SECONDS);
-                        } catch (TimeoutException e) {
-                            reply = createChildDeviceMessageReply(message, null);
-                            reply.error(ErrorCode.TIME_OUT);
-                        } catch (Exception e) {
-                            log.error("等待子设备返回消息失败", e);
-                            reply = createChildDeviceMessageReply(message, null);
-                            reply.error(ErrorCode.SYSTEM_ERROR);
-                        }
-                        deviceMessageHandler.reply(reply);
+                        //向父设备发送消息
+                        deviceRegistry.getDevice(parentId)
+                                .messageSender()
+                                .send(childMessage, obj -> createChildDeviceMessageReply(message, obj))
+                                .whenComplete((reply, throwable) -> {
+                                    if (throwable != null) {
+                                        log.error("等待子设备返回消息失败", throwable);
+                                    } else {
+                                        deviceMessageHandler.reply(reply);
+                                    }
+                                });
                     }
                 } else {
                     //设备不在当前服务器节点
                     log.warn("设备[{}]未连接服务器[{}],无法发送消息:{}", deviceId, serverId, message.toJson());
+                    //检查一下真实状态
                     operation.checkState();
                     DeviceMessageReply reply = createChildDeviceMessageReply(message, null);
                     reply.error(ErrorCode.CLIENT_OFFLINE);
@@ -320,6 +300,8 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
     public DeviceSession register(DeviceSession session) {
         DeviceSession old = repository.put(session.getDeviceId(), session);
         if (null != old) {
+            //未注销,可能多个设备使用了相同的id.
+            log.warn("注册的设备[{}]已存在,断开旧连接:{}", old.getDeviceId(), session);
             old.close();
         } else {
             transportCounter
