@@ -9,6 +9,9 @@
         <version>1.0-SNAPSHOT</version>
     </parent>
     <artifactId>jetlinks-gateway</artifactId>
+    <name>JetLinks Device GateWay Server</name>
+    <description>设备网关服务,管理多种连接协议以及实现消息收发.</description>
+
     <properties>
         <vertx.version>3.6.3</vertx.version>
     </properties>
