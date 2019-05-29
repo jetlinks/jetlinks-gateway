@@ -92,6 +92,7 @@ public class RedissonGatewayServerMonitor implements GatewayServerMonitor {
             }
         };
     }
+
     @Override
     public GatewayServerInfo getCurrentServerInfo() {
         return newGatewayServerInfo(currentServerId);
@@ -119,15 +120,6 @@ public class RedissonGatewayServerMonitor implements GatewayServerMonitor {
     public void serverOffline(String serverId) {
         log.debug("device gateway server [{}] offline ", serverId);
         allServerId.fastRemove(serverId);
-
-        client.<Transport>getSet(getRedisKey(transport_all_support, serverId))
-                .forEach(transport -> {
-                    client.getSet(getRedisKey(transport_connection_total, serverId, transport.name())).delete();
-                    client.getSet(getRedisKey(transport_hosts, serverId, transport.name())).delete();
-                });
-
-        client.getSet(getRedisKey(transport_all_support, serverId))
-                .delete();
     }
 
     @Override
@@ -158,9 +150,21 @@ public class RedissonGatewayServerMonitor implements GatewayServerMonitor {
                 .sum();
     }
 
+    protected void clean() {
+        client.<Transport>getSet(getRedisKey(transport_all_support, currentServerId))
+                .forEach(transport -> {
+                    client.getSet(getRedisKey(transport_connection_total, currentServerId, transport.name())).delete();
+                    client.getSet(getRedisKey(transport_hosts, currentServerId, transport.name())).delete();
+                });
+
+        client.getSet(getRedisKey(transport_all_support, currentServerId))
+                .delete();
+    }
+
     @PreDestroy
     public void shutdown() {
         allServerId.remove(currentServerId);
+        clean();
     }
 
     @PostConstruct
