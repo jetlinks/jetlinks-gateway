@@ -38,6 +38,7 @@ public class RedissonGatewayServerMonitor implements GatewayServerMonitor {
     private static final String transport_all_support = "transport_supports";
     private static final String transport_connection_total = "transport_conn_total";
 
+    private volatile boolean startup = false;
 
     public String getRedisKey(String... key) {
         return "device-gateway:" + String.join(":", key);
@@ -123,9 +124,12 @@ public class RedissonGatewayServerMonitor implements GatewayServerMonitor {
     }
 
     @Override
-    public void registerTransport(Transport transport, String... hosts) {
+    public synchronized void registerTransport(Transport transport, String... hosts) {
         client.getSet(getRedisKey(transport_all_support, currentServerId)).add(transport);
         client.getSet(getRedisKey(transport_hosts, currentServerId, transport.name())).addAll(Arrays.asList(hosts));
+        if (!startup) {
+            doStartup();
+        }
     }
 
     @Override
@@ -167,8 +171,11 @@ public class RedissonGatewayServerMonitor implements GatewayServerMonitor {
         clean();
     }
 
-    @PostConstruct
-    public void startup() {
+    protected synchronized void doStartup() {
+        if (startup) {
+            return;
+        }
+        startup = true;
         allServerId.put(currentServerId, System.currentTimeMillis());
 
         executorService.scheduleAtFixedRate(() -> {
@@ -182,7 +189,11 @@ public class RedissonGatewayServerMonitor implements GatewayServerMonitor {
                     .filter(Objects::nonNull)
                     .forEach(this::serverOffline);
 
-        }, 10, Math.max(1, timeToLive - 1), TimeUnit.SECONDS);
+        }, 1, Math.max(1, timeToLive - 1), TimeUnit.SECONDS);
+    }
+
+    @PostConstruct
+    public void startup() {
 
 
     }
