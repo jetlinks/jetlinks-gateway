@@ -17,6 +17,7 @@ public class RedissonGatewayServerMonitorTest {
     @Before
     public void init() {
         monitor = new RedissonGatewayServerMonitor("test", RedissonHelper.newRedissonClient(), Executors.newScheduledThreadPool(4));
+        monitor.setTimeToLive(2);
         monitor.startup();
     }
 
@@ -39,11 +40,11 @@ public class RedissonGatewayServerMonitorTest {
     @Test
     @SneakyThrows
     public void testInfo() {
-        monitor.registerTransport( Transport.MQTT, "tcp://127.0.0.1:1883");
+        monitor.registerTransport(Transport.MQTT, "tcp://127.0.0.1:1883");
         monitor.registerTransport(Transport.TCP, "tcp://127.0.0.1:2190");
 
         monitor.reportDeviceCount(Transport.MQTT, 100);
-        monitor.reportDeviceCount( Transport.TCP, 200);
+        monitor.reportDeviceCount(Transport.TCP, 200);
         Thread.sleep(3000);
 
         GatewayServerInfo info = monitor.getServerInfo("test").orElse(null);
@@ -64,12 +65,18 @@ public class RedissonGatewayServerMonitorTest {
 
         Assert.assertTrue(info.getTransportHosts(Transport.MQTT).contains("tcp://127.0.0.1:1883"));
 
-
+        //主动下线,可能由于网络波动,导致心跳失败.
         monitor.serverOffline("test");
-        Assert.assertTrue(info.getAllTransport().isEmpty());
-        Assert.assertTrue(info.getTransportHosts(Transport.MQTT).isEmpty());
-        Assert.assertEquals(info.getDeviceConnectionTotal(Transport.MQTT), 0);
-        Assert.assertEquals(info.getDeviceConnectionTotal(), 0);
+        Assert.assertFalse(monitor.getServerInfo("test").isPresent());
+
+        Assert.assertTrue(monitor.getAllServerInfo().isEmpty());
+        //暂停3秒,等待重新心跳
+        Thread.sleep(3000);
+        //重新上线
+        Assert.assertTrue(monitor.getServerInfo("test").isPresent());
+        Assert.assertTrue(info.getAllTransport().contains(Transport.MQTT));
+        Assert.assertTrue(info.getTransportHosts(Transport.MQTT).contains("tcp://127.0.0.1:1883"));
+
 
     }
 
