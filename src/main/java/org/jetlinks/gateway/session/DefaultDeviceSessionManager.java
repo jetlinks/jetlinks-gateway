@@ -313,8 +313,8 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
         } else {
             transportCounter
                     .computeIfAbsent(session.getTransport(), transport -> new LongAdder())
-                    .add(1);
-            counter.add(1);
+                    .increment();
+            counter.increment();
         }
         if (!session.getId().equals(session.getDeviceId())) {
             repository.put(session.getId(), session);
@@ -335,8 +335,8 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
         if (null != client) {
             transportCounter
                     .computeIfAbsent(client.getTransport(), transport -> new LongAdder())
-                    .add(-1);
-            counter.add(-1);
+                    .decrement();
+            counter.decrement();
             if (!client.getId().equals(client.getDeviceId())) {
                 repository.remove(client.getId().equals(idOrDeviceId) ? client.getDeviceId() : client.getId());
             }
