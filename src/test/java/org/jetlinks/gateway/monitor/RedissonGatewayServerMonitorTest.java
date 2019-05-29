@@ -28,6 +28,7 @@ public class RedissonGatewayServerMonitorTest {
 
     @Test
     public void testOnlineOffline() {
+        monitor.registerTransport(Transport.MQTT);
         GatewayServerInfo info = monitor.getServerInfo("test").orElse(null);
         Assert.assertNotNull(info);
 
