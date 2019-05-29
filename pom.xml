@@ -6,11 +6,30 @@
     <parent>
         <groupId>org.jetlinks</groupId>
         <artifactId>jetlinks</artifactId>
-        <version>1.0-SNAPSHOT</version>
+        <version>1.0.0-RC</version>
     </parent>
     <artifactId>jetlinks-gateway</artifactId>
     <name>JetLinks Device GateWay Server</name>
     <description>设备网关服务,管理多种连接协议以及实现消息收发.</description>
+
+    <licenses>
+        <license>
+            <name>The Apache License, Version 2.0</name>
+            <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <name>zhouhao</name>
+            <email>i@hsweb.me</email>
+            <roles>
+                <role>Owner</role>
+            </roles>
+            <timezone>+8</timezone>
+            <url>https://github.com/zhou-hao</url>
+        </developer>
+    </developers>
 
     <properties>
         <vertx.version>3.6.3</vertx.version>
@@ -170,7 +189,6 @@
         <dependency>
             <groupId>com.alibaba</groupId>
             <artifactId>druid</artifactId>
-            <version>1.1.9</version>
             <scope>test</scope>
         </dependency>
 
