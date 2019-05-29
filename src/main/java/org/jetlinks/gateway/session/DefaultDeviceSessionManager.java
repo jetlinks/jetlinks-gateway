@@ -269,7 +269,14 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
         executorService.scheduleAtFixedRate(() -> {
             List<String> notAliveClients = repository.values()
                     .stream()
-                    .filter(client -> !client.isAlive())
+                    .peek(session->{
+                        //检查注册中心的信息是否与当前服务器一致
+                        //在redis集群宕机的时候,刚好往设备发送消息,可能导致注册中心认为设备已经离线.
+                        if(!serverId.equals(session.getOperation().getServerId())){
+                            session.getOperation().online(serverId,session.getId());
+                        }
+                    })
+                    .filter(session -> !session.isAlive())
                     .map(DeviceSession::getId)
                     .collect(Collectors.toList());
             long closed = notAliveClients.size();
