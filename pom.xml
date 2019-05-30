@@ -32,7 +32,7 @@
     </developers>
 
     <properties>
-        <vertx.version>3.6.3</vertx.version>
+        <vertx.version>3.7.1</vertx.version>
     </properties>
 
     <build>
