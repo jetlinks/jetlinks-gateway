@@ -170,7 +170,7 @@ public class MqttServer extends AbstractVerticle {
                         doCloseEndpoint(endpoint);
                     })
                     .exceptionHandler(e -> {
-                        logger.error("MQTT客户端[{}]连接错误", clientId, e);
+                        logger.warn("MQTT客户端[{}]连接错误", clientId, e);
                         doCloseEndpoint(endpoint);
                     })
                     .publishHandler(message -> {
