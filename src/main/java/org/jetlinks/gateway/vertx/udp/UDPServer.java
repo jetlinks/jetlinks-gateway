@@ -33,16 +33,15 @@ public abstract class UDPServer extends AbstractVerticle {
 
         socket = vertx.createDatagramSocket(options);
         socket.listen(port, host, result -> {
-            if (result.succeeded()) {
-                DatagramSocket datagramSocket = result.result();
-                log.debug("UDP server started on {}:{}", host, port);
-                datagramSocket.handler(this::handleUDPMessage)
-                        .exceptionHandler(err -> log.error(err.getMessage(), err))
-                        .endHandler(end -> log.debug("end handle udp"));
-            } else {
-                log.warn("UDP server start failed", result.cause());
-            }
-        });
+                    if (result.succeeded()) {
+                        log.debug("UDP server started on {}:{}", host, port);
+                        socket.handler(this::handleUDPMessage)
+                                .exceptionHandler(err -> log.error(err.getMessage(), err))
+                                .endHandler(end -> log.debug("end handle udp"));
+                    } else {
+                        log.warn("UDP server start failed", result.cause());
+                    }
+                });
     }
 
     protected abstract void handleUDPMessage(DatagramPacket packet);

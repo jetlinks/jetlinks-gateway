@@ -13,16 +13,10 @@ import org.jetlinks.coap.enums.Code;
 import org.junit.Assert;
 import org.junit.Test;
 
-import java.io.ByteArrayOutputStream;
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
-import java.net.InetSocketAddress;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-
-import static org.junit.Assert.*;
 
 public class CoAPServerTest {
 
@@ -41,12 +35,14 @@ public class CoAPServerTest {
             }
         };
         coAPServer.setPort(port);
-
+        coAPServer.setHost("127.0.0.1");
         coAPServer.setOptions(new DatagramSocketOptions());
 
         vertx.deployVerticle(coAPServer, result -> {
             whenStart.accept(result.succeeded());
-
+            if(!result.succeeded()){
+                result.cause().printStackTrace();
+            }
         });
     }
 
