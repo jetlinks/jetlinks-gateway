@@ -24,6 +24,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
@@ -38,7 +39,7 @@ import static java.util.Optional.ofNullable;
  */
 public class DefaultDeviceSessionManager implements DeviceSessionManager {
 
-    private Map<String, DeviceSession> repository = new ConcurrentHashMap<>(256);
+    private Map<String, DeviceSession> repository = new ConcurrentHashMap<>(4096);
 
     @Getter
     @Setter
@@ -76,11 +77,12 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
     @Setter
     private Consumer<DeviceSession> onDeviceUnRegister;
 
-    private Queue<Runnable> closeClientJobs = new ArrayDeque<>();
-
-    private LongAdder counter = new LongAdder();
+    private Queue<Runnable> scheduleJobQueue = new ArrayDeque<>();
 
     private Map<Transport, LongAdder> transportCounter = new ConcurrentHashMap<>();
+
+    //异步消息记录
+    private ConcurrentMap<String, Long> asyncMessage = new ConcurrentHashMap<>(1024);
 
     @Getter
     @Setter
@@ -130,18 +132,19 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
                         return deviceRegistry.getDevice(deviceId);
                     }
                 });
-        //发往设备
-        session.send(encodedMessage);
-        //如果是异步操作，则直接返回结果
+        //判断是否异步消息
         if (message instanceof FunctionInvokeMessage) {
             FunctionInvokeMessage invokeMessage = ((FunctionInvokeMessage) message);
-            boolean async = Boolean.TRUE.equals(invokeMessage.getAsync())
-                    || session.getOperation()
-                    .getMetadata()
-                    .getFunction(invokeMessage.getFunctionId())
-                    .map(FunctionMetadata::isAsync)
-                    .orElse(false);
+            boolean async =
+                    (invokeMessage.getAsync() != null && Boolean.TRUE.equals(invokeMessage.getAsync()))
+                            //metadata中默认的配置
+                            || session.getOperation()
+                            .getMetadata()
+                            .getFunction(invokeMessage.getFunctionId())
+                            .map(FunctionMetadata::isAsync)
+                            .orElse(false);
             if (async) {
+                asyncMessage.put(message.getMessageId(), System.currentTimeMillis());
                 //直接回复消息
                 deviceMessageHandler.reply(FunctionInvokeMessageReply.builder()
                         .messageId(message.getMessageId())
@@ -152,23 +155,21 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
                         .build());
             }
         }
+        //发往设备
+        session.send(encodedMessage);
     }
 
     public void handleDeviceMessageReply(DeviceSession session, DeviceMessageReply reply) {
+        if (StringUtils.isEmpty(reply.getMessageId())) {
+            log.warn("消息无messageId:{}", reply.toJson());
+            return;
+        }
         if (reply instanceof FunctionInvokeMessageReply) {
             FunctionInvokeMessageReply message = ((FunctionInvokeMessageReply) reply);
-            //判断是否为异步操作，如果不异步的，则需要同步回复结果
-            boolean async = session.getOperation()
-                    .getMetadata()
-                    .getFunction(message.getFunctionId())
-                    .map(FunctionMetadata::isAsync)
-                    .orElse(false);
+            //判断是否为同步操作，如果不异步的，则需要同步回复结果
+            boolean sync = asyncMessage.remove(message.getMessageId()) == null;
             //同步操作则直接返回
-            if (!async) {
-                if (StringUtils.isEmpty(message.getMessageId())) {
-                    log.warn("消息无messageId:{}", message.toJson());
-                    return;
-                }
+            if (sync) {
                 deviceMessageHandler.reply(message);
             }
         }
@@ -289,18 +290,35 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
             gatewayServerMonitor.getCurrentServerInfo()
                     .getAllTransport()
                     .forEach(transport -> gatewayServerMonitor
-                            .reportDeviceCount(transport,Optional.ofNullable(transportCounter.get(transport)).map(LongAdder::longValue).orElse(0L)));
+                            .reportDeviceCount(transport, Optional.ofNullable(transportCounter.get(transport)).map(LongAdder::longValue).orElse(0L)));
 
             //执行任务
-            for (Runnable runnable = closeClientJobs.poll(); runnable != null; runnable = closeClientJobs.poll()) {
+            int jobNumber = 0;
+            for (Runnable runnable = scheduleJobQueue.poll(); runnable != null; runnable = scheduleJobQueue.poll()) {
+                jobNumber++;
                 runnable.run();
             }
+            Set<String> expireMessage = asyncMessage
+                    .entrySet()
+                    .stream()
+                    .filter(e -> System.currentTimeMillis() - e.getValue() > TimeUnit.MINUTES.toMillis(1))
+                    .map(Map.Entry::getKey)
+                    .collect(Collectors.toSet());
 
-            log.info("当前节点设备连接数量:{},本次检查失效设备数量:{},耗时:{}ms.当前集群中总连接设备数量:{}.",
-                    transportCounter,
-                    closed,
-                    System.currentTimeMillis() - startTime,
-                    gatewayServerMonitor.getDeviceCount());
+            expireMessage.forEach(expireMessage::remove);
+            if (log.isInfoEnabled()) {
+                log.info("当前节点设备连接数量:{}.当前集群中总连接数量:{}" +
+                                "本次检查连接失效数量:{}," +
+                                "过期异步消息数量:{}," +
+                                "执行任务:{}," +
+                                "耗时:{}ms.",
+                        transportCounter,
+                        gatewayServerMonitor.getDeviceCount(),
+                        closed,
+                        expireMessage.size(),
+                        jobNumber,
+                        System.currentTimeMillis() - startTime);
+            }
         }, 10, 30, TimeUnit.SECONDS);
 
     }
@@ -313,22 +331,26 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
     @Override
     public DeviceSession register(DeviceSession session) {
         DeviceSession old = repository.put(session.getDeviceId(), session);
-        if (null != old) {
-            //未注销,可能多个设备使用了相同的id.
-            log.warn("注册的设备[{}]已存在,断开旧连接:{}", old.getDeviceId(), session);
-            old.close();
-        } else {
-            transportCounter
-                    .computeIfAbsent(session.getTransport(), transport -> new LongAdder())
-                    .increment();
-            counter.increment();
-        }
         if (!session.getId().equals(session.getDeviceId())) {
             repository.put(session.getId(), session);
         }
+        if (null != old) {
+            //1. 可能是多个设备使用了相同的id.
+            //2. 可能是同一个设备,注销后立即上线,由于种种原因,先处理了上线后处理了注销逻辑.
+            log.warn("注册的设备[{}]已存在,断开旧连接:{}", old.getDeviceId(), session);
+            //加入关闭连接队列
+            scheduleJobQueue.add(old::close);
+        } else {
+            //本地计数
+            transportCounter
+                    .computeIfAbsent(session.getTransport(), transport -> new LongAdder())
+                    .increment();
+        }
+        //注册中心上线
         deviceRegistry
                 .getDevice(session.getDeviceId())
                 .online(serverId, session.getId());
+        //通知
         if (null != onDeviceRegister) {
             onDeviceRegister.accept(session);
         }
@@ -340,15 +362,18 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
         DeviceSession client = repository.remove(idOrDeviceId);
 
         if (null != client) {
-            transportCounter
-                    .computeIfAbsent(client.getTransport(), transport -> new LongAdder())
-                    .decrement();
-            counter.decrement();
             if (!client.getId().equals(client.getDeviceId())) {
                 repository.remove(client.getId().equals(idOrDeviceId) ? client.getDeviceId() : client.getId());
             }
-            closeClientJobs.add(client::close);
+            //本地计数
+            transportCounter
+                    .computeIfAbsent(client.getTransport(), transport -> new LongAdder())
+                    .decrement();
+            //注册中心下线
             deviceRegistry.getDevice(client.getDeviceId()).offline();
+            //加入关闭连接队列
+            scheduleJobQueue.add(client::close);
+            //通知
             if (null != onDeviceUnRegister) {
                 onDeviceUnRegister.accept(client);
             }
