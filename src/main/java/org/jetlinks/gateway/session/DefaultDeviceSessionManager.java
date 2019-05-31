@@ -267,13 +267,15 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
         });
         //每30秒检查一次设备连接情况
         executorService.scheduleAtFixedRate(() -> {
+            long startTime = System.currentTimeMillis();
             List<String> notAliveClients = repository.values()
-                    .stream()
-                    .peek(session->{
+                    .parallelStream()
+                    .peek(session -> {
                         //检查注册中心的信息是否与当前服务器一致
                         //在redis集群宕机的时候,刚好往设备发送消息,可能导致注册中心认为设备已经离线.
-                        if(!serverId.equals(session.getOperation().getServerId())){
-                            session.getOperation().online(serverId,session.getId());
+                        if (!serverId.equals(session.getOperation().getServerId())) {
+                            log.warn("设备[{}]状态不正确!", session.getDeviceId());
+                            session.getOperation().online(serverId, session.getId());
                         }
                     })
                     .filter(session -> !session.isAlive())
@@ -287,13 +289,16 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
                 gatewayServerMonitor.reportDeviceCount(entry.getKey(), entry.getValue().longValue());
             }
 
-            log.debug("当前节点设备连接数量:{},本次检查失效设备数量:{},集群中总连接设备数量:{}",
-                    transportCounter, closed, gatewayServerMonitor.getDeviceCount());
-
             //执行任务
             for (Runnable runnable = closeClientJobs.poll(); runnable != null; runnable = closeClientJobs.poll()) {
                 runnable.run();
             }
+
+            log.info("当前节点设备连接数量:{},本次检查失效设备数量:{},耗时:{}ms.当前集群中总连接设备数量:{}.",
+                    transportCounter,
+                    closed,
+                    System.currentTimeMillis()-startTime,
+                    gatewayServerMonitor.getDeviceCount());
         }, 10, 30, TimeUnit.SECONDS);
 
     }

@@ -70,12 +70,9 @@ public abstract class DefaultTcpServer extends TcpServer {
                         DefaultTcpServer.this.send(socket, MessageType.MESSAGE, Buffer.buffer(encodedMessage.getByteBuf()));
                     }
                 };
-                DeviceOperation operation = getRegistry().getDevice(response.getDeviceId());
-
                 session.setId(createClientId(socket));
                 session.setDeviceId(response.getDeviceId());
-                session.setOperation(operation);
-                session.setProtocolSupport(operation.getProtocol());
+                session.setOperationSupplier(getRegistry()::getDevice);
                 session.setSocket(socket);
                 acceptConnect(session);
             }
@@ -116,9 +113,9 @@ public abstract class DefaultTcpServer extends TcpServer {
                 if (null != deviceMessageHandler) {
                     deviceMessageHandler.accept(session, deviceMessage);
                 }
-                if(deviceMessage instanceof DeviceMessageReply){
+                if (deviceMessage instanceof DeviceMessageReply) {
                     getDeviceSessionManager()
-                            .handleDeviceMessageReply(session,((DeviceMessageReply) deviceMessage));
+                            .handleDeviceMessageReply(session, ((DeviceMessageReply) deviceMessage));
                 }
 
             }

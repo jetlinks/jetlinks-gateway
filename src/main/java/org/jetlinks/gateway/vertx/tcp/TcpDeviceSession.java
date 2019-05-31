@@ -4,13 +4,14 @@ import io.vertx.core.buffer.Buffer;
 import io.vertx.core.net.NetSocket;
 import lombok.Getter;
 import lombok.Setter;
-import org.jetlinks.gateway.session.DeviceSession;
 import org.jetlinks.core.ProtocolSupport;
 import org.jetlinks.core.device.DeviceOperation;
 import org.jetlinks.core.message.codec.EncodedMessage;
 import org.jetlinks.core.message.codec.Transport;
+import org.jetlinks.gateway.session.DeviceSession;
 
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 @Getter
 @Setter
@@ -23,11 +24,19 @@ public class TcpDeviceSession implements DeviceSession {
 
     private long connectTime = System.currentTimeMillis();
 
-    private DeviceOperation operation;
-
-    private ProtocolSupport protocolSupport;
+    private Function<String,DeviceOperation> operationSupplier;
 
     private NetSocket socket;
+
+    @Override
+    public DeviceOperation getOperation() {
+        return operationSupplier.apply(getDeviceId());
+    }
+
+    @Override
+    public ProtocolSupport getProtocolSupport() {
+        return getOperation().getProtocol();
+    }
 
     private long keepAliveInterval = TimeUnit.MINUTES.toMillis(10);
 

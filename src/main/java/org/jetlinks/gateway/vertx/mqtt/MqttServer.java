@@ -124,7 +124,7 @@ public class MqttServer extends AbstractVerticle {
         ));
         //授权通过
         if (response.isSuccess()) {
-            MqttDeviceSession session = new MqttDeviceSession(endpoint, operation, operation.getProtocol());
+            MqttDeviceSession session = new MqttDeviceSession(endpoint, () -> registry.getDevice(clientId));
             accept(endpoint, session);
         } else if (401 == response.getCode()) {
             logger.debug("设备[{}]认证未通过:{}", clientId, response);
@@ -151,7 +151,7 @@ public class MqttServer extends AbstractVerticle {
         try {
             //注册
             deviceSessionManager.register(session);
-            logger.info("MQTT客户端[{}]建立连接", clientId);
+            logger.debug("MQTT客户端[{}]建立连接", clientId);
             endpoint
                     .closeHandler(v -> doCloseEndpoint(endpoint))
                     .subscribeHandler(subscribe -> {
@@ -166,11 +166,11 @@ public class MqttServer extends AbstractVerticle {
                     })
                     .unsubscribeHandler(unsubscribe -> endpoint.unsubscribeAcknowledge(unsubscribe.messageId()))
                     .disconnectHandler(v -> {
-                        logger.info("MQTT客户端[{}]断开连接", clientId);
+                        logger.debug("MQTT客户端[{}]断开连接", clientId);
                         doCloseEndpoint(endpoint);
                     })
                     .exceptionHandler(e -> {
-                        logger.warn("MQTT客户端[{}]连接错误", clientId, e);
+                        logger.debug("MQTT客户端[{}]连接错误", clientId, e);
                         doCloseEndpoint(endpoint);
                     })
                     .publishHandler(message -> {

@@ -13,6 +13,7 @@ import org.jetlinks.core.message.codec.Transport;
 import org.jetlinks.core.device.DeviceOperation;
 
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 /**
  * @author zhouhao
@@ -38,23 +39,28 @@ public class UDPDeviceSession implements DeviceSession {
     private DatagramSocket socket;
 
     @Getter
-    private DeviceOperation operation;
-
-    @Getter
-    ProtocolSupport protocolSupport;
+    private Function<String, DeviceOperation> operationSupplier;
 
 
     public UDPDeviceSession(String deviceId,
                             SocketAddress socketAddress,
                             DatagramSocket socket,
-                            DeviceOperation operation,
-                            ProtocolSupport protocolSupport) {
+                            Function<String, DeviceOperation> operationSupplier) {
         this.deviceId = deviceId;
         this.id = deviceId;
         this.socketAddress = socketAddress;
         this.socket = socket;
-        this.operation = operation;
-        this.protocolSupport = protocolSupport;
+        this.operationSupplier = operationSupplier;
+    }
+
+    @Override
+    public DeviceOperation getOperation() {
+        return operationSupplier.apply(getDeviceId());
+    }
+
+    @Override
+    public ProtocolSupport getProtocolSupport() {
+        return getOperation().getProtocol();
     }
 
     @Override

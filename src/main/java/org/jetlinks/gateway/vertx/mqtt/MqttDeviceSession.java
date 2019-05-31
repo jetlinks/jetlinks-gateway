@@ -13,6 +13,7 @@ import org.jetlinks.core.message.codec.Transport;
 import org.jetlinks.core.device.DeviceOperation;
 
 import java.nio.charset.StandardCharsets;
+import java.util.function.Supplier;
 
 /**
  * @author zhouhao
@@ -24,20 +25,26 @@ public class MqttDeviceSession implements DeviceSession {
     private MqttEndpoint endpoint;
 
     @Getter
-    private DeviceOperation operation;
-
-    @Getter
-    private ProtocolSupport protocolSupport;
+    private Supplier<DeviceOperation> operationSupplier;
 
     private long connectTime = System.currentTimeMillis();
 
     private volatile long lastPingTime = System.currentTimeMillis();
 
-    public MqttDeviceSession(MqttEndpoint endpoint, DeviceOperation operation, ProtocolSupport protocolSupport) {
+    public MqttDeviceSession(MqttEndpoint endpoint, Supplier<DeviceOperation> operation) {
         endpoint.pingHandler(r -> ping());
         this.endpoint = endpoint;
-        this.operation = operation;
-        this.protocolSupport = protocolSupport;
+        this.operationSupplier = operation;
+    }
+
+    @Override
+    public ProtocolSupport getProtocolSupport() {
+        return getOperation().getProtocol();
+    }
+
+    @Override
+    public DeviceOperation getOperation() {
+        return operationSupplier.get();
     }
 
     @Override
