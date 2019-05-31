@@ -24,7 +24,6 @@ import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
@@ -80,9 +79,6 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
     private Queue<Runnable> scheduleJobQueue = new ArrayDeque<>();
 
     private Map<Transport, LongAdder> transportCounter = new ConcurrentHashMap<>();
-
-    //异步消息记录
-    private ConcurrentMap<String, Long> asyncMessage = new ConcurrentHashMap<>(1024);
 
     @Getter
     @Setter
@@ -144,7 +140,7 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
                             .map(FunctionMetadata::isAsync)
                             .orElse(false);
             if (async) {
-                asyncMessage.put(message.getMessageId(), System.currentTimeMillis());
+                deviceMessageHandler.markMessageAsync(message.getMessageId());
                 //直接回复消息
                 deviceMessageHandler.reply(FunctionInvokeMessageReply.builder()
                         .messageId(message.getMessageId())
@@ -167,7 +163,7 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
         if (reply instanceof FunctionInvokeMessageReply) {
             FunctionInvokeMessageReply message = ((FunctionInvokeMessageReply) reply);
             //判断是否为同步操作，如果不异步的，则需要同步回复结果
-            boolean sync = asyncMessage.remove(message.getMessageId()) == null;
+            boolean sync = !deviceMessageHandler.messageIsAsync(message.getMessageId());
             //同步操作则直接返回
             if (sync) {
                 deviceMessageHandler.reply(message);
@@ -298,24 +294,15 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
                 jobNumber++;
                 runnable.run();
             }
-            Set<String> expireMessage = asyncMessage
-                    .entrySet()
-                    .stream()
-                    .filter(e -> System.currentTimeMillis() - e.getValue() > TimeUnit.MINUTES.toMillis(1))
-                    .map(Map.Entry::getKey)
-                    .collect(Collectors.toSet());
 
-            expireMessage.forEach(expireMessage::remove);
             if (log.isInfoEnabled()) {
                 log.info("当前节点设备连接数量:{},当前集群中总连接数量:{}." +
                                 "本次检查连接失效数量:{}," +
-                                "过期异步消息数量:{}," +
-                                "执行任务:{}," +
+                                "执行任务数量:{}," +
                                 "耗时:{}ms.",
                         transportCounter,
                         gatewayServerMonitor.getDeviceCount(),
                         closed,
-                        expireMessage.size(),
                         jobNumber,
                         System.currentTimeMillis() - startTime);
             }

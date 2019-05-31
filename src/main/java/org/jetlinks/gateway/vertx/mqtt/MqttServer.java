@@ -10,7 +10,6 @@ import io.vertx.mqtt.MqttTopicSubscription;
 import lombok.Getter;
 import lombok.Setter;
 import org.jetlinks.core.ProtocolSupports;
-import org.jetlinks.core.device.AuthenticationResponse;
 import org.jetlinks.core.device.DeviceOperation;
 import org.jetlinks.core.device.DeviceState;
 import org.jetlinks.core.device.MqttAuthenticationRequest;
@@ -106,7 +105,7 @@ public class MqttServer extends AbstractVerticle {
         }
         if (deviceSessionManager.isOutOfMaximumConnectionLimit(Transport.MQTT)) {
             //当前连接超过了最大连接数
-            logger.warn("拒绝客户端连接[{}],已超过最大连接数限制:[{}]!", endpoint.clientIdentifier(), deviceSessionManager.getMaximumConnection(Transport.MQTT));
+            logger.info("拒绝客户端连接[{}],已超过最大连接数限制:[{}]!", endpoint.clientIdentifier(), deviceSessionManager.getMaximumConnection(Transport.MQTT));
             endpoint.reject(MqttConnectReturnCode.CONNECTION_REFUSED_SERVER_UNAVAILABLE);
             return;
         }
@@ -119,20 +118,24 @@ public class MqttServer extends AbstractVerticle {
             return;
         }
         //进行认证
-        AuthenticationResponse response = operation.authenticate(new MqttAuthenticationRequest(
+        operation.authenticate(new MqttAuthenticationRequest(
                 clientId, userName, passWord
-        ));
-        //授权通过
-        if (response.isSuccess()) {
-            MqttDeviceSession session = new MqttDeviceSession(endpoint, () -> registry.getDevice(clientId));
-            accept(endpoint, session);
-        } else if (401 == response.getCode()) {
-            logger.debug("设备[{}]认证未通过:{}", clientId, response);
-            endpoint.reject(MqttConnectReturnCode.CONNECTION_REFUSED_BAD_USER_NAME_OR_PASSWORD);
-        } else {
-            logger.warn("设备[{}]认证失败:{}", clientId, response);
-            endpoint.reject(MqttConnectReturnCode.CONNECTION_REFUSED_SERVER_UNAVAILABLE);
-        }
+        )).whenComplete((response, err) -> {
+            if (err != null) {
+                logger.warn("设备认证[{}]失败", clientId, err);
+            } else {
+                if (response.isSuccess()) {
+                    MqttDeviceSession session = new MqttDeviceSession(endpoint, () -> registry.getDevice(clientId));
+                    accept(endpoint, session);
+                } else if (401 == response.getCode()) {
+                    logger.debug("设备[{}]认证未通过:{}", clientId, response);
+                    endpoint.reject(MqttConnectReturnCode.CONNECTION_REFUSED_BAD_USER_NAME_OR_PASSWORD);
+                } else {
+                    logger.warn("设备[{}]认证失败:{}", clientId, response);
+                    endpoint.reject(MqttConnectReturnCode.CONNECTION_REFUSED_SERVER_UNAVAILABLE);
+                }
+            }
+        });
     }
 
     protected void doCloseEndpoint(MqttEndpoint client) {

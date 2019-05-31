@@ -50,8 +50,8 @@ public class MqttServerTest {
                 new JetLinksProtocolSupport() {
                     @Nonnull
                     @Override
-                    public AuthenticationResponse authenticate(@Nonnull AuthenticationRequest request, @Nonnull DeviceOperation deviceOperation) {
-                        return AuthenticationResponse.success();
+                    public CompletionStage<AuthenticationResponse> authenticate(@Nonnull AuthenticationRequest request, @Nonnull DeviceOperation deviceOperation) {
+                        return CompletableFuture.completedFuture(AuthenticationResponse.success());
                     }
                 };
 
