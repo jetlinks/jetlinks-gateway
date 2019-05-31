@@ -219,6 +219,7 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
             DeviceOperation operation = deviceRegistry.getDevice(deviceId);
             if (session == null) {
                 if (serverId.equals(operation.getServerId())) {
+                    log.warn("设备[{}]未连接到当前设备网关服务[{}]", deviceId, serverId);
                     operation.offline();
                 }
             } else {
@@ -284,10 +285,11 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
             long closed = notAliveClients.size();
 
             notAliveClients.forEach(this::unregister);
-            for (Map.Entry<Transport, LongAdder> entry : transportCounter.entrySet()) {
-                //提交当前节点的监控
-                gatewayServerMonitor.reportDeviceCount(entry.getKey(), entry.getValue().longValue());
-            }
+
+            gatewayServerMonitor.getCurrentServerInfo()
+                    .getAllTransport()
+                    .forEach(transport -> gatewayServerMonitor
+                            .reportDeviceCount(transport,Optional.ofNullable(transportCounter.get(transport)).map(LongAdder::longValue).orElse(0L)));
 
             //执行任务
             for (Runnable runnable = closeClientJobs.poll(); runnable != null; runnable = closeClientJobs.poll()) {
@@ -297,7 +299,7 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
             log.info("当前节点设备连接数量:{},本次检查失效设备数量:{},耗时:{}ms.当前集群中总连接设备数量:{}.",
                     transportCounter,
                     closed,
-                    System.currentTimeMillis()-startTime,
+                    System.currentTimeMillis() - startTime,
                     gatewayServerMonitor.getDeviceCount());
         }, 10, 30, TimeUnit.SECONDS);
 

@@ -44,12 +44,14 @@ public class RedissonGatewayServerMonitor implements GatewayServerMonitor {
         return "device-gateway:" + String.join(":", key);
     }
 
+    private GatewayServerInfo current;
 
     public RedissonGatewayServerMonitor(String currentServerId, RedissonClient redissonClient, ScheduledExecutorService executorService) {
         this.allServerId = redissonClient.getMap(getRedisKey("server:all"));
         this.client = redissonClient;
         this.currentServerId = currentServerId;
         this.executorService = executorService;
+        current=newGatewayServerInfo(currentServerId);
     }
 
     private GatewayServerInfo newGatewayServerInfo(String serverId) {
@@ -96,7 +98,7 @@ public class RedissonGatewayServerMonitor implements GatewayServerMonitor {
 
     @Override
     public GatewayServerInfo getCurrentServerInfo() {
-        return newGatewayServerInfo(currentServerId);
+        return current;
     }
 
     @Override
