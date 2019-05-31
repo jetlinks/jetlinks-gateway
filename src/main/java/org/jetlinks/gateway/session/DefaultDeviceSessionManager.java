@@ -307,7 +307,7 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
 
             expireMessage.forEach(expireMessage::remove);
             if (log.isInfoEnabled()) {
-                log.info("当前节点设备连接数量:{}.当前集群中总连接数量:{}" +
+                log.info("当前节点设备连接数量:{},当前集群中总连接数量:{}." +
                                 "本次检查连接失效数量:{}," +
                                 "过期异步消息数量:{}," +
                                 "执行任务:{}," +

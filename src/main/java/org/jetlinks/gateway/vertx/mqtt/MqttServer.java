@@ -89,7 +89,7 @@ public class MqttServer extends AbstractVerticle {
                         if (gatewayServerMonitor != null) {
                             gatewayServerMonitor.registerTransport(Transport.MQTT, publicServerAddress);
                         }
-                        logger.debug("MQTT 服务启动成功,端口:{},最大连接数限制:{},公共服务地址:{} ",
+                        logger.info("MQTT 服务启动成功,端口:{},最大连接数限制:{},公共服务地址:{} ",
                                 port,
                                 deviceSessionManager.getMaximumConnection(Transport.MQTT),
                                 publicServerAddress);
@@ -181,9 +181,8 @@ public class MqttServer extends AbstractVerticle {
                             logger.debug("收到设备[{}]消息[{}]=>{}", clientId, topicName, buffer.toString());
                         }
                         try {
-                            //消息协议
                             EncodedMessage encodedMessage = EncodedMessage.mqtt(clientId, topicName, buffer.getByteBuf());
-                            //转换消息
+                            //转换消息未可读对象
                             DeviceMessage deviceMessage = session.getProtocolSupport()
                                     .getMessageCodec()
                                     .decode(Transport.MQTT, new FromDeviceMessageContext() {
