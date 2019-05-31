@@ -123,6 +123,7 @@ public class MqttServer extends AbstractVerticle {
         )).whenComplete((response, err) -> {
             if (err != null) {
                 logger.warn("设备认证[{}]失败", clientId, err);
+                endpoint.reject(MqttConnectReturnCode.CONNECTION_REFUSED_SERVER_UNAVAILABLE);
             } else {
                 if (response.isSuccess()) {
                     MqttDeviceSession session = new MqttDeviceSession(endpoint, () -> registry.getDevice(clientId));
