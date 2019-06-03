@@ -226,7 +226,7 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
         //接收发往设备的消息
         deviceMessageHandler.handleMessage(serverId, message -> {
             String deviceId = message.getDeviceId();
-            DeviceSession session = repository.get(deviceId);
+            DeviceSession session = getSession(deviceId);
             //直连设备
             if (session != null) {
                 doSend(message, session);
@@ -271,6 +271,7 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
                     .peek(session -> {
                         //检查注册中心的信息是否与当前服务器一致
                         //在redis集群宕机的时候,刚好往设备发送消息,可能导致注册中心认为设备已经离线.
+                        //让设备重新上线,否则其他服务无法往此设备发送消息.
                         if (!serverId.equals(session.getOperation().getServerId())) {
                             log.warn("设备[{}]状态不正确!", session.getDeviceId());
                             session.getOperation().online(serverId, session.getId());
@@ -279,6 +280,7 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
                     .filter(session -> !session.isAlive())
                     .map(DeviceSession::getId)
                     .collect(Collectors.toList());
+
             long closed = notAliveClients.size();
 
             notAliveClients.forEach(this::unregister);
@@ -312,7 +314,11 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
 
     @Override
     public DeviceSession getSession(String clientId) {
-        return repository.get(clientId);
+        DeviceSession session = repository.get(clientId);
+        if (session == null || !session.isAlive()) {
+            return null;
+        }
+        return session;
     }
 
     @Override

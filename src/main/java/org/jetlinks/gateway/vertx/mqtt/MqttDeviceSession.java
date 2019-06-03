@@ -98,7 +98,6 @@ public class MqttDeviceSession implements DeviceSession {
 
     @Override
     public void ping() {
-//        log.info("mqtt client[{}] ping", getClientId());
         lastPingTime = System.currentTimeMillis();
     }
 
