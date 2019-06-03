@@ -272,7 +272,7 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
                         //检查注册中心的信息是否与当前服务器一致
                         //在redis集群宕机的时候,刚好往设备发送消息,可能导致注册中心认为设备已经离线.
                         //让设备重新上线,否则其他服务无法往此设备发送消息.
-                        if (!serverId.equals(session.getOperation().getServerId())) {
+                        if (!serverId.equals(session.getOperation().getServerId()) && session.isAlive()) {
                             log.warn("设备[{}]状态不正确!", session.getDeviceId());
                             session.getOperation().online(serverId, session.getId());
                         }
