@@ -99,44 +99,49 @@ public class MqttServer extends AbstractVerticle {
     }
 
     protected void doConnect(MqttEndpoint endpoint) {
-        if (endpoint.auth() == null) {
-            endpoint.reject(MqttConnectReturnCode.CONNECTION_REFUSED_NOT_AUTHORIZED);
-            return;
-        }
-        if (deviceSessionManager.isOutOfMaximumConnectionLimit(Transport.MQTT)) {
-            //当前连接超过了最大连接数
-            logger.info("拒绝客户端连接[{}],已超过最大连接数限制:[{}]!", endpoint.clientIdentifier(), deviceSessionManager.getMaximumConnection(Transport.MQTT));
-            endpoint.reject(MqttConnectReturnCode.CONNECTION_REFUSED_SERVER_UNAVAILABLE);
-            return;
-        }
-        String clientId = endpoint.clientIdentifier();
-        String userName = endpoint.auth().getUsername();
-        String passWord = endpoint.auth().getPassword();
-        DeviceOperation operation = registry.getDevice(clientId);
-        if (operation.getState() == DeviceState.unknown) {
-            endpoint.reject(MqttConnectReturnCode.CONNECTION_REFUSED_IDENTIFIER_REJECTED);
-            return;
-        }
-        //进行认证
-        operation.authenticate(new MqttAuthenticationRequest(
-                clientId, userName, passWord
-        )).whenComplete((response, err) -> {
-            if (err != null) {
-                logger.warn("设备认证[{}]失败", clientId, err);
-                endpoint.reject(MqttConnectReturnCode.CONNECTION_REFUSED_SERVER_UNAVAILABLE);
-            } else {
-                if (response.isSuccess()) {
-                    MqttDeviceSession session = new MqttDeviceSession(endpoint, () -> registry.getDevice(clientId));
-                    accept(endpoint, session);
-                } else if (401 == response.getCode()) {
-                    logger.debug("设备[{}]认证未通过:{}", clientId, response);
-                    endpoint.reject(MqttConnectReturnCode.CONNECTION_REFUSED_BAD_USER_NAME_OR_PASSWORD);
-                } else {
-                    logger.warn("设备[{}]认证失败:{}", clientId, response);
-                    endpoint.reject(MqttConnectReturnCode.CONNECTION_REFUSED_SERVER_UNAVAILABLE);
-                }
+        try {
+            if (endpoint.auth() == null) {
+                endpoint.reject(MqttConnectReturnCode.CONNECTION_REFUSED_NOT_AUTHORIZED);
+                return;
             }
-        });
+            if (deviceSessionManager.isOutOfMaximumConnectionLimit(Transport.MQTT)) {
+                //当前连接超过了最大连接数
+                logger.info("拒绝客户端连接[{}],已超过最大连接数限制:[{}]!", endpoint.clientIdentifier(), deviceSessionManager.getMaximumConnection(Transport.MQTT));
+                endpoint.reject(MqttConnectReturnCode.CONNECTION_REFUSED_SERVER_UNAVAILABLE);
+                return;
+            }
+            String clientId = endpoint.clientIdentifier();
+            String userName = endpoint.auth().getUsername();
+            String passWord = endpoint.auth().getPassword();
+            DeviceOperation operation = registry.getDevice(clientId);
+            if (operation.getState() == DeviceState.unknown) {
+                endpoint.reject(MqttConnectReturnCode.CONNECTION_REFUSED_IDENTIFIER_REJECTED);
+                return;
+            }
+            //进行认证
+            operation.authenticate(new MqttAuthenticationRequest(
+                    clientId, userName, passWord
+            )).whenComplete((response, err) -> {
+                if (err != null) {
+                    logger.warn("设备认证[{}]失败", clientId, err);
+                    endpoint.reject(MqttConnectReturnCode.CONNECTION_REFUSED_SERVER_UNAVAILABLE);
+                } else {
+                    if (response.isSuccess()) {
+                        MqttDeviceSession session = new MqttDeviceSession(endpoint, () -> registry.getDevice(clientId));
+                        accept(endpoint, session);
+                    } else if (401 == response.getCode()) {
+                        logger.debug("设备[{}]认证未通过:{}", clientId, response);
+                        endpoint.reject(MqttConnectReturnCode.CONNECTION_REFUSED_BAD_USER_NAME_OR_PASSWORD);
+                    } else {
+                        logger.warn("设备[{}]认证失败:{}", clientId, response);
+                        endpoint.reject(MqttConnectReturnCode.CONNECTION_REFUSED_SERVER_UNAVAILABLE);
+                    }
+                }
+            });
+        } catch (Exception e) {
+            logger.error(e.getMessage(), e);
+            endpoint.reject(MqttConnectReturnCode.CONNECTION_REFUSED_SERVER_UNAVAILABLE);
+        }
     }
 
     protected void doCloseEndpoint(MqttEndpoint client) {
