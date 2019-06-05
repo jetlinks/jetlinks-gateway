@@ -169,19 +169,23 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
         }
         //支持异步到消息
         if (Headers.asyncSupport.get(reply).asBoolean().orElse(false)) {
-            //判断是否为异步消息,如果是异步消息,则不需要回复.
-            deviceMessageHandler
-                    .messageIsAsync(reply.getMessageId())
-                    .whenComplete((async, throwable) -> {
-                        //如果是同步操作则返回
-                        if (!Boolean.TRUE.equals(async)) {
-                            doReply(reply);
-                        }
-                    });
-            return;
+            //reply没有标记为异步,则从消息处理器中判断是否异步
+            if (!Headers.async.get(reply).asBoolean().orElse(false)) {
+                //判断是否标记为异步消息,如果是异步消息,则不需要回复.
+                deviceMessageHandler
+                        .messageIsAsync(reply.getMessageId()) //在消息发送端,如果是异步消息,应该对消息进行标记
+                        .whenComplete((async, throwable) -> {
+                            //如果是同步操作则返回
+                            if (!Boolean.TRUE.equals(async)) {
+                                doReply(reply);
+                            } else if (log.isDebugEnabled()) {
+                                log.debug("收到异步消息回复:{}", reply);
+                            }
+                        });
+                return;
+            }
         }
         doReply(reply);
-
     }
 
     protected DeviceMessage createChildDeviceMessage(DeviceOperation childDevice, DeviceMessage message) {
