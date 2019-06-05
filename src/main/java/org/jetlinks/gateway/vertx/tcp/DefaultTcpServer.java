@@ -110,12 +110,12 @@ public abstract class DefaultTcpServer extends TcpServer {
                 if (deviceMessage == null || deviceMessage instanceof EmptyDeviceMessage) {
                     return;
                 }
-                if (null != deviceMessageHandler) {
-                    deviceMessageHandler.accept(session, deviceMessage);
-                }
                 if (deviceMessage instanceof DeviceMessageReply) {
                     getDeviceSessionManager()
                             .handleDeviceMessageReply(session, ((DeviceMessageReply) deviceMessage));
+                }
+                if (null != deviceMessageHandler) {
+                    deviceMessageHandler.accept(session, deviceMessage);
                 }
 
             }

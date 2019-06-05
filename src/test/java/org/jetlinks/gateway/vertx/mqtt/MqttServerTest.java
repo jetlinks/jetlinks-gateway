@@ -55,7 +55,7 @@ public class MqttServerTest {
                     }
                 };
 
-        RedissonDeviceRegistry registry = new RedissonDeviceRegistry(client, protocolSupports);
+        RedissonDeviceRegistry registry = new RedissonDeviceRegistry(client,deviceMessageHandler, protocolSupports);
         DeviceInfo deviceInfo = new DeviceInfo();
 
         deviceInfo.setId("test");

@@ -14,18 +14,14 @@ import org.jetlinks.core.message.*;
 import org.jetlinks.core.message.codec.EncodedMessage;
 import org.jetlinks.core.message.codec.MessageEncodeContext;
 import org.jetlinks.core.message.codec.Transport;
-import org.jetlinks.core.message.function.FunctionInvokeMessage;
 import org.jetlinks.core.message.function.FunctionInvokeMessageReply;
-import org.jetlinks.core.metadata.FunctionMetadata;
 import org.jetlinks.core.utils.IdUtils;
 import org.jetlinks.gateway.monitor.GatewayServerMonitor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -128,31 +124,37 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
                         return deviceRegistry.getDevice(deviceId);
                     }
                 });
-        //判断是否异步消息
-        if (message instanceof FunctionInvokeMessage) {
-            FunctionInvokeMessage invokeMessage = ((FunctionInvokeMessage) message);
-            boolean async =
-                    (invokeMessage.getAsync() != null && Boolean.TRUE.equals(invokeMessage.getAsync()))
-                            //metadata中默认的配置
-                            || session.getOperation()
-                            .getMetadata()
-                            .getFunction(invokeMessage.getFunctionId())
-                            .map(FunctionMetadata::isAsync)
-                            .orElse(false);
-            if (async) {
-                deviceMessageHandler.markMessageAsync(message.getMessageId());
-                //直接回复消息
-                deviceMessageHandler.reply(FunctionInvokeMessageReply.builder()
-                        .messageId(message.getMessageId())
-                        .deviceId(deviceId)
-                        .message(ErrorCode.REQUEST_HANDLING.getText())
-                        .code(ErrorCode.REQUEST_HANDLING.name())
-                        .success(false)
-                        .build());
-            }
-        }
-        //发往设备
+        //直接发往设备
         session.send(encodedMessage);
+
+        //如果是异步消息,先直接回复处理中...
+        if (Headers.async.get(message).asBoolean().orElse(false)) {
+            FunctionInvokeMessageReply reply = FunctionInvokeMessageReply.create()
+                    .messageId(message.getMessageId())
+                    .deviceId(deviceId)
+                    .message(ErrorCode.REQUEST_HANDLING.getText())
+                    .code(ErrorCode.REQUEST_HANDLING.name())
+                    .success(false);
+            //直接回复消息
+            deviceMessageHandler.reply(reply)
+                    .whenComplete((success, error) -> {
+                        if (error != null) {
+                            log.error("回复异步设备消息处理中失败: {}", reply, error);
+                        }
+                    });
+        }
+
+
+    }
+
+    private CompletionStage<Boolean> doReply(DeviceMessageReply reply) {
+        return deviceMessageHandler
+                .reply(reply)
+                .whenComplete((success, error) -> {
+                    if (error != null) {
+                        log.error("回复设备消息失败:{}", reply, error);
+                    }
+                });
     }
 
     public void handleDeviceMessageReply(DeviceSession session, DeviceMessageReply reply) {
@@ -160,15 +162,25 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
             log.warn("消息无messageId:{}", reply.toJson());
             return;
         }
-        if (reply instanceof FunctionInvokeMessageReply) {
-            FunctionInvokeMessageReply message = ((FunctionInvokeMessageReply) reply);
-            //判断是否为同步操作，如果不异步的，则需要同步回复结果
-            boolean sync = !deviceMessageHandler.messageIsAsync(message.getMessageId());
-            //同步操作则直接返回
-            if (sync) {
-                deviceMessageHandler.reply(message);
-            }
+        //强制回复
+        if (Headers.forceReply.get(reply).asBoolean().orElse(false)) {
+            doReply(reply);
+            return;
         }
+        //支持异步到消息
+        if (Headers.asyncSupport.get(reply).asBoolean().orElse(false)) {
+            //判断是否为异步消息,如果是异步消息,则不需要回复.
+            deviceMessageHandler
+                    .messageIsAsync(reply.getMessageId())
+                    .whenComplete((async, throwable) -> {
+                        //如果是同步操作则返回
+                        if (!Boolean.TRUE.equals(async)) {
+                            doReply(reply);
+                        }
+                    });
+            return;
+        }
+        doReply(reply);
 
     }
 

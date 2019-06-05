@@ -216,13 +216,14 @@ public class MqttServer extends AbstractVerticle {
                                         }
 
                                     });
-                            if (!(deviceMessage instanceof EmptyDeviceMessage)) {
-                                messageConsumer.accept(session, deviceMessage);
-                            }
                             //处理消息回复
                             if (deviceMessage instanceof DeviceMessageReply) {
                                 getDeviceSessionManager()
                                         .handleDeviceMessageReply(session, ((DeviceMessageReply) deviceMessage));
+                            }
+                            //推送事件
+                            if (!(deviceMessage instanceof EmptyDeviceMessage)) {
+                                messageConsumer.accept(session, deviceMessage);
                             }
                         } catch (Throwable e) {
                             logger.error("处理设备[{}]消息[{}]:\n{}\n失败", clientId, topicName, buffer.toString(), e);
