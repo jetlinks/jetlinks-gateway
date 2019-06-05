@@ -5,13 +5,16 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.jetlinks.core.message.codec.Transport;
 import org.redisson.api.RMap;
+import org.redisson.api.RQueue;
 import org.redisson.api.RedissonClient;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -34,6 +37,8 @@ public class RedissonGatewayServerMonitor implements GatewayServerMonitor {
 
     private ScheduledExecutorService executorService;
 
+    private List<Consumer<String>> downListener = new CopyOnWriteArrayList<>();
+
     private static final String transport_hosts = "transport_hosts";
     private static final String transport_all_support = "transport_supports";
     private static final String transport_connection_total = "transport_conn_total";
@@ -46,12 +51,15 @@ public class RedissonGatewayServerMonitor implements GatewayServerMonitor {
 
     private GatewayServerInfo current;
 
+    private RQueue<String> serverDownQueue;
+
     public RedissonGatewayServerMonitor(String currentServerId, RedissonClient redissonClient, ScheduledExecutorService executorService) {
         this.allServerId = redissonClient.getMap(getRedisKey("server:all"));
         this.client = redissonClient;
         this.currentServerId = currentServerId;
         this.executorService = executorService;
-        current=newGatewayServerInfo(currentServerId);
+        current = newGatewayServerInfo(currentServerId);
+        serverDownQueue = client.getQueue("device-gateway-server-down");
     }
 
     private GatewayServerInfo newGatewayServerInfo(String serverId) {
@@ -122,7 +130,12 @@ public class RedissonGatewayServerMonitor implements GatewayServerMonitor {
     @Override
     public void serverOffline(String serverId) {
         log.debug("device gateway server [{}] offline ", serverId);
-        allServerId.fastRemove(serverId);
+        long number = allServerId.fastRemove(serverId);
+        if (number > 0) {
+            for (Consumer<String> consumer : downListener) {
+                consumer.accept(serverId);
+            }
+        }
     }
 
     @Override
@@ -138,6 +151,11 @@ public class RedissonGatewayServerMonitor implements GatewayServerMonitor {
     public void reportDeviceCount(Transport transport, long count) {
         client.getAtomicLong(getRedisKey(transport_connection_total, currentServerId, transport.name()))
                 .set(count);
+    }
+
+    @Override
+    public void onServerDown(Consumer<String> listener) {
+        downListener.add(listener);
     }
 
     @Override
@@ -169,7 +187,8 @@ public class RedissonGatewayServerMonitor implements GatewayServerMonitor {
 
     @PreDestroy
     public void shutdown() {
-        allServerId.remove(currentServerId);
+        allServerId.fastRemove(currentServerId);
+        serverDownQueue.add(currentServerId);
         clean();
     }
 
@@ -179,7 +198,7 @@ public class RedissonGatewayServerMonitor implements GatewayServerMonitor {
         }
         startup = true;
         allServerId.put(currentServerId, System.currentTimeMillis());
-
+        serverDownQueue.remove(currentServerId);
         executorService.scheduleAtFixedRate(() -> {
             log.debug("device gateway server [{}] keepalive", currentServerId);
             allServerId.put(currentServerId, System.currentTimeMillis());
@@ -190,7 +209,14 @@ public class RedissonGatewayServerMonitor implements GatewayServerMonitor {
                     .map(Map.Entry::getKey)
                     .filter(Objects::nonNull)
                     .forEach(this::serverOffline);
-
+            //触发服务下线事件
+            for (String offlineServer = serverDownQueue.poll()
+                 ; offlineServer != null && (!currentServerId.equals(offlineServer))
+                    ; offlineServer = serverDownQueue.poll()) {
+                for (Consumer<String> listener : downListener) {
+                    listener.accept(offlineServer);
+                }
+            }
         }, 1, Math.max(1, timeToLive - 1), TimeUnit.SECONDS);
     }
 

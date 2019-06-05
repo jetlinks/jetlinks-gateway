@@ -4,6 +4,7 @@ import org.jetlinks.core.message.codec.Transport;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 
 /**
@@ -25,6 +26,8 @@ public interface GatewayServerMonitor {
     void reportDeviceCount(Transport transport, long count);
 
     long getDeviceCount(String serverId);
+
+    void onServerDown(Consumer<String> listener);
 
     long getDeviceCount();
 }

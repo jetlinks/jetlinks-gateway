@@ -9,6 +9,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class RedissonGatewayServerMonitorTest {
 
@@ -29,11 +30,16 @@ public class RedissonGatewayServerMonitorTest {
     @Test
     public void testOnlineOffline() {
         monitor.registerTransport(Transport.MQTT);
+        AtomicReference<String> reference=new AtomicReference<>();
+
+        monitor.onServerDown(reference::set);
+
         GatewayServerInfo info = monitor.getServerInfo("test").orElse(null);
         Assert.assertNotNull(info);
 
         Assert.assertEquals(info.getId(), "test");
         monitor.serverOffline("test");
+        Assert.assertNotNull(reference.get());
         info = monitor.getServerInfo("test").orElse(null);
         Assert.assertNull(info);
     }
