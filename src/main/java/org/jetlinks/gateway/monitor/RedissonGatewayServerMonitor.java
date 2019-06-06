@@ -149,6 +149,8 @@ public class RedissonGatewayServerMonitor implements GatewayServerMonitor {
 
     @Override
     public void reportDeviceCount(Transport transport, long count) {
+        client.<Transport>getSet(getRedisKey(transport_all_support, currentServerId)).add(transport);
+
         client.getAtomicLong(getRedisKey(transport_connection_total, currentServerId, transport.name()))
                 .set(count);
     }
@@ -181,8 +183,7 @@ public class RedissonGatewayServerMonitor implements GatewayServerMonitor {
                     client.getSet(getRedisKey(transport_hosts, currentServerId, transport.name())).delete();
                 });
 
-        client.getSet(getRedisKey(transport_all_support, currentServerId))
-                .delete();
+        client.getSet(getRedisKey(transport_all_support, currentServerId)).delete();
     }
 
     @PreDestroy
