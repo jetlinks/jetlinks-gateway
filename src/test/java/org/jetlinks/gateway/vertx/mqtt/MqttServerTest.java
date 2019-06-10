@@ -125,7 +125,7 @@ public class MqttServerTest {
                 jsonObject.put("success", true);
                 jsonObject.put("properties", Collections.singletonMap("name", "123"));
                 client.publish("/read-property-reply", Buffer.buffer(jsonObject.toJSONString().getBytes()),
-                        MqttQoS.AT_MOST_ONCE, false, false);
+                        MqttQoS.AT_LEAST_ONCE, false, false);
             }
         })
                 .exceptionHandler(Throwable::printStackTrace)

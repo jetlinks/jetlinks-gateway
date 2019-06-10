@@ -90,7 +90,7 @@ public class MqttDeviceSession implements DeviceSession {
             if (log.isDebugEnabled()) {
                 log.debug("发送消息到MQTT客户端[{}]=>[{}]:{}", message.getTopic(), getDeviceId(), buffer.toString(StandardCharsets.UTF_8));
             }
-            endpoint.publish(message.getTopic(), buffer, MqttQoS.valueOf(message.getQosLevel()), false, false);
+            endpoint.publish(message.getTopic(), buffer, MqttQoS.valueOf(message.getQosLevel()), message.isDup(), message.isRetain());
         } else {
             log.error("不支持发送消息{}到MQTT:", encodedMessage);
         }
