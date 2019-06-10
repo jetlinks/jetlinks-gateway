@@ -115,6 +115,7 @@ public class MqttServer extends AbstractVerticle {
             String passWord = endpoint.auth().getPassword();
             DeviceOperation operation = registry.getDevice(clientId);
             if (operation.getState() == DeviceState.unknown) {
+                logger.info("设备[{}]认证未通过:未注册到注册中心!", clientId);
                 endpoint.reject(MqttConnectReturnCode.CONNECTION_REFUSED_IDENTIFIER_REJECTED);
                 return;
             }
@@ -123,17 +124,17 @@ public class MqttServer extends AbstractVerticle {
                     clientId, userName, passWord
             )).whenComplete((response, err) -> {
                 if (err != null) {
-                    logger.warn("设备认证[{}]失败", clientId, err);
+                    logger.warn("设备认证[{}:{}]失败:{}", clientId, userName, err.getMessage(), err);
                     endpoint.reject(MqttConnectReturnCode.CONNECTION_REFUSED_SERVER_UNAVAILABLE);
                 } else {
                     if (response.isSuccess()) {
                         MqttDeviceSession session = new MqttDeviceSession(endpoint, () -> registry.getDevice(clientId));
                         accept(endpoint, session);
                     } else if (401 == response.getCode()) {
-                        logger.debug("设备[{}]认证未通过:{}", clientId, response);
+                        logger.info("设备[{}:{}]认证未通过:{}", clientId, userName, response.getMessage());
                         endpoint.reject(MqttConnectReturnCode.CONNECTION_REFUSED_BAD_USER_NAME_OR_PASSWORD);
                     } else {
-                        logger.warn("设备[{}]认证失败:{}", clientId, response);
+                        logger.warn("设备[{}:{}]认证失败:{}", clientId, userName, response);
                         endpoint.reject(MqttConnectReturnCode.CONNECTION_REFUSED_SERVER_UNAVAILABLE);
                     }
                 }
