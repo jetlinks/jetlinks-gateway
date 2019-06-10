@@ -167,7 +167,7 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
             doReply(reply);
             return;
         }
-        //支持异步到消息
+        //支持异步的消息
         if (Headers.asyncSupport.get(reply).asBoolean().orElse(false)) {
             //reply没有标记为异步,则从消息处理器中判断是否异步
             if (!Headers.async.get(reply).asBoolean().orElse(false)) {
