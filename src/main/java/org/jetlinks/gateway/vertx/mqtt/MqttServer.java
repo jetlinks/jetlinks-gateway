@@ -26,7 +26,6 @@ import org.jetlinks.gateway.session.DeviceSessionManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.BiConsumer;
@@ -187,7 +186,7 @@ public class MqttServer extends AbstractVerticle {
                     })
                     //QoS 2  PUBREL
                     .publishReleaseHandler(messageId -> {
-                        logger.debug("PUBREL: 释放[{}]消息:{}",clientId, messageId);
+                        logger.debug("PUBREL: 释放[{}]消息:{}", clientId, messageId);
                         endpoint.publishComplete(messageId);
                     })
                     //QoS 2  PUBCOMP
@@ -209,7 +208,7 @@ public class MqttServer extends AbstractVerticle {
                         String topicName = message.topicName();
                         Buffer buffer = message.payload();
                         if (logger.isDebugEnabled()) {
-                            logger.debug("收到设备[{}]消息[{}]=>{}", clientId, topicName, buffer.toString());
+                            logger.debug("收到设备[{}]消息[{}:{}]=>{}", clientId, topicName, message.messageId(), buffer.toString());
                         }
                         try {
                             EncodedMessage encodedMessage = new VertxMqttMessage(clientId, message);
