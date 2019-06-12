@@ -5,12 +5,12 @@ import io.vertx.core.buffer.Buffer;
 import io.vertx.mqtt.MqttEndpoint;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-import org.jetlinks.gateway.session.DeviceSession;
 import org.jetlinks.core.ProtocolSupport;
+import org.jetlinks.core.device.DeviceOperation;
 import org.jetlinks.core.message.codec.EncodedMessage;
 import org.jetlinks.core.message.codec.MqttMessage;
 import org.jetlinks.core.message.codec.Transport;
-import org.jetlinks.core.device.DeviceOperation;
+import org.jetlinks.gateway.session.DeviceSession;
 
 import java.nio.charset.StandardCharsets;
 import java.util.function.Supplier;
@@ -31,10 +31,14 @@ public class MqttDeviceSession implements DeviceSession {
 
     private volatile long lastPingTime = System.currentTimeMillis();
 
+    private int keepAliveTimeOut;
+
     public MqttDeviceSession(MqttEndpoint endpoint, Supplier<DeviceOperation> operation) {
         endpoint.pingHandler(r -> ping());
         this.endpoint = endpoint;
         this.operationSupplier = operation;
+        //ping 超时时间
+        keepAliveTimeOut = (endpoint.keepAliveTimeSeconds() + 2) * 1000;
     }
 
     @Override
@@ -70,7 +74,9 @@ public class MqttDeviceSession implements DeviceSession {
     @Override
     public void close() {
         try {
-            endpoint.close();
+            if (endpoint.isConnected()) {
+                endpoint.close();
+            }
         } catch (Exception ignore) {
 
         }
@@ -99,11 +105,19 @@ public class MqttDeviceSession implements DeviceSession {
     @Override
     public void ping() {
         lastPingTime = System.currentTimeMillis();
+        if (!endpoint.isAutoKeepAlive()) {
+            endpoint.pong();
+        }
     }
 
     @Override
     public boolean isAlive() {
-        return endpoint.isConnected();
+        boolean isKeepAliveTimeOut = System.currentTimeMillis() - lastPingTime > keepAliveTimeOut;
+
+        if (isKeepAliveTimeOut && log.isInfoEnabled()) {
+            log.info("设备[{}],ping超时[{}s]!", getDeviceId(), endpoint.keepAliveTimeSeconds());
+        }
+        return endpoint.isConnected() && !isKeepAliveTimeOut;
     }
 
     @Override
