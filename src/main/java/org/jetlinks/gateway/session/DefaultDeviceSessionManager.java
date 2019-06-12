@@ -21,7 +21,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -74,7 +78,7 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
 
     private Queue<Runnable> scheduleJobQueue = new ArrayDeque<>();
 
-    private Map<Transport, LongAdder> transportCounter = new ConcurrentHashMap<>();
+    private Map<Transport, AtomicLong> transportCounter = new ConcurrentHashMap<>();
 
     @Getter
     @Setter
@@ -92,7 +96,7 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
     @Override
     public long getCurrentConnection(Transport transport) {
         return ofNullable(transportCounter.get(transport))
-                .map(LongAdder::longValue)
+                .map(AtomicLong::longValue)
                 .orElse(0L);
     }
 
@@ -282,15 +286,20 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
         //每30秒检查一次设备连接情况
         executorService.scheduleAtFixedRate(() -> {
             long startTime = System.currentTimeMillis();
+            Map<Transport, LongAdder> real = new ConcurrentHashMap<>();
+
             List<String> notAliveClients = repository.values()
                     .parallelStream()
                     .peek(session -> {
-                        //检查注册中心的信息是否与当前服务器一致
-                        //在redis集群宕机的时候,刚好往设备发送消息,可能导致注册中心认为设备已经离线.
-                        //让设备重新上线,否则其他服务无法往此设备发送消息.
-                        if (!serverId.equals(session.getOperation().getServerId()) && session.isAlive()) {
-                            log.warn("设备[{}]状态不正确!", session.getDeviceId());
-                            session.getOperation().online(serverId, session.getId());
+                        if (session.isAlive()) {
+                            real.computeIfAbsent(session.getTransport(), (__) -> new LongAdder()).increment();
+                            //检查注册中心的信息是否与当前服务器一致
+                            //在redis集群宕机的时候,刚好往设备发送消息,可能导致注册中心认为设备已经离线.
+                            //让设备重新上线,否则其他服务无法往此设备发送消息.
+                            if (!serverId.equals(session.getOperation().getServerId())) {
+                                log.warn("设备[{}]状态不正确!", session.getDeviceId());
+                                session.getOperation().online(serverId, session.getId());
+                            }
                         }
                     })
                     .filter(session -> !session.isAlive())
@@ -301,10 +310,18 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
 
             notAliveClients.forEach(this::unregister);
 
+            //更新真实数量
+            transportCounter.forEach((transport, realNumber) ->
+                    Optional.ofNullable(real.get(transport))
+                            .ifPresent(counter -> realNumber.set(counter.longValue())));
+
             gatewayServerMonitor.getCurrentServerInfo()
                     .getAllTransport()
                     .forEach(transport -> gatewayServerMonitor
-                            .reportDeviceCount(transport, Optional.ofNullable(transportCounter.get(transport)).map(LongAdder::longValue).orElse(0L)));
+                            .reportDeviceCount(transport,
+                                    Optional.ofNullable(transportCounter.get(transport))
+                                            .map(AtomicLong::longValue)
+                                            .orElse(0L)));
 
             //执行任务
             int jobNumber = 0;
@@ -352,8 +369,8 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
         } else {
             //本地计数
             transportCounter
-                    .computeIfAbsent(session.getTransport(), transport -> new LongAdder())
-                    .increment();
+                    .computeIfAbsent(session.getTransport(), transport -> new AtomicLong())
+                    .incrementAndGet();
         }
         //注册中心上线
         deviceRegistry
@@ -376,8 +393,8 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
             }
             //本地计数
             transportCounter
-                    .computeIfAbsent(client.getTransport(), transport -> new LongAdder())
-                    .decrement();
+                    .computeIfAbsent(client.getTransport(), transport -> new AtomicLong())
+                    .decrementAndGet();
             //注册中心下线
             deviceRegistry.getDevice(client.getDeviceId()).offline();
             //加入关闭连接队列
