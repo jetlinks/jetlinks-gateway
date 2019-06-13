@@ -6,11 +6,14 @@ import io.vertx.core.net.NetClientOptions;
 import io.vertx.core.net.NetServerOptions;
 import io.vertx.core.net.NetSocket;
 import lombok.SneakyThrows;
+import org.jetlinks.core.device.AuthenticationResponse;
 import org.jetlinks.gateway.vertx.tcp.fixed.FixedLengthTcpCodec;
 import org.jetlinks.gateway.vertx.tcp.message.MessageType;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -24,8 +27,8 @@ public class DefaultTcpServerTest {
     public DefaultTcpServer startServer(int port, Consumer<Boolean> consumer, BiConsumer<MessageType, Buffer> payloadConsumer) {
         DefaultTcpServer tcpServer = new DefaultTcpServer() {
             @Override
-            protected TcpAuthenticationResponse doAuth(NetSocket socket, Buffer payload) {
-                return TcpAuthenticationResponse.error(400, "不支持");
+            protected CompletionStage<AuthenticationResponse> doAuth(NetSocket socket, Buffer payload) {
+                return CompletableFuture.completedFuture(AuthenticationResponse.error(400, "不支持"));
             }
 
             @Override

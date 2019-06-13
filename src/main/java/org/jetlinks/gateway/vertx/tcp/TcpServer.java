@@ -35,7 +35,7 @@ public abstract class TcpServer extends AbstractVerticle {
 
     @Getter
     @Setter
-    private long authTimeout = TimeUnit.SECONDS.toMillis(10);
+    private long authTimeout = TimeUnit.SECONDS.toMillis(60);
 
     @Override
     public void start() {

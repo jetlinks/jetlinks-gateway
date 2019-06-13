@@ -25,7 +25,6 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -43,10 +42,6 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
     @Getter
     @Setter
     private Logger log = LoggerFactory.getLogger(DefaultDeviceSessionManager.class);
-
-    @Getter
-    @Setter
-    private String serverId;
 
     @Getter
     @Setter
@@ -76,9 +71,11 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
     @Setter
     private Consumer<DeviceSession> onDeviceUnRegister;
 
+    private String serverId;
+
     private Queue<Runnable> scheduleJobQueue = new ArrayDeque<>();
 
-    private Map<Transport, AtomicLong> transportCounter = new ConcurrentHashMap<>();
+    private Map<Transport, LongAdder> transportCounter = new ConcurrentHashMap<>();
 
     @Getter
     @Setter
@@ -96,7 +93,7 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
     @Override
     public long getCurrentConnection(Transport transport) {
         return ofNullable(transportCounter.get(transport))
-                .map(AtomicLong::longValue)
+                .map(LongAdder::longValue)
                 .orElse(0L);
     }
 
@@ -111,6 +108,7 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
                 .map(DeviceSession::getId)
                 .forEach(this::unregister);
     }
+
 
     protected void doSend(DeviceMessage message, DeviceSession session) {
         String deviceId = message.getDeviceId();
@@ -230,6 +228,14 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
     }
 
     public void init() {
+        Objects.requireNonNull(deviceRegistry, "deviceRegistry");
+        Objects.requireNonNull(deviceMessageHandler, "deviceMessageHandler");
+        Objects.requireNonNull(gatewayServerMonitor, "gatewayServerMonitor");
+        Objects.requireNonNull(protocolSupports, "protocolSupports");
+        Objects.requireNonNull(executorService, "executorService");
+
+        serverId = gatewayServerMonitor.getCurrentServerInfo().getId();
+
         //处理设备状态检查
         deviceMessageHandler.handleDeviceCheck(serverId, deviceId -> {
             DeviceSession session = repository.get(deviceId);
@@ -286,13 +292,13 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
         //每30秒检查一次设备连接情况
         executorService.scheduleAtFixedRate(() -> {
             long startTime = System.currentTimeMillis();
-            Map<Transport, LongAdder> real = new ConcurrentHashMap<>();
+          //  Map<Transport, LongAdder> real = new ConcurrentHashMap<>();
 
             List<String> notAliveClients = repository.values()
                     .parallelStream()
                     .peek(session -> {
                         if (session.isAlive()) {
-                            real.computeIfAbsent(session.getTransport(), (__) -> new LongAdder()).increment();
+                            //real.computeIfAbsent(session.getTransport(), (__) -> new LongAdder()).increment();
                             //检查注册中心的信息是否与当前服务器一致
                             //在redis集群宕机的时候,刚好往设备发送消息,可能导致注册中心认为设备已经离线.
                             //让设备重新上线,否则其他服务无法往此设备发送消息.
@@ -310,17 +316,16 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
 
             notAliveClients.forEach(this::unregister);
 
-            //更新真实数量
-            transportCounter.forEach((transport, realNumber) ->
-                    Optional.ofNullable(real.get(transport))
-                            .ifPresent(counter -> realNumber.set(counter.longValue())));
+//            //更新真实数量
+//            transportCounter.forEach((transport, realNumber) ->
+//                    Optional.ofNullable(real.get(transport))
+//                            .ifPresent(counter -> realNumber.set(counter.longValue())));
 
             gatewayServerMonitor.getCurrentServerInfo()
                     .getAllTransport()
-                    .forEach(transport -> gatewayServerMonitor
-                            .reportDeviceCount(transport,
+                    .forEach(transport -> gatewayServerMonitor.reportDeviceCount(transport,
                                     Optional.ofNullable(transportCounter.get(transport))
-                                            .map(AtomicLong::longValue)
+                                            .map(LongAdder::longValue)
                                             .orElse(0L)));
 
             //执行任务
@@ -369,8 +374,8 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
         } else {
             //本地计数
             transportCounter
-                    .computeIfAbsent(session.getTransport(), transport -> new AtomicLong())
-                    .incrementAndGet();
+                    .computeIfAbsent(session.getTransport(), transport -> new LongAdder())
+                    .increment();
         }
         //注册中心上线
         deviceRegistry
@@ -393,8 +398,8 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
             }
             //本地计数
             transportCounter
-                    .computeIfAbsent(client.getTransport(), transport -> new AtomicLong())
-                    .decrementAndGet();
+                    .computeIfAbsent(client.getTransport(), transport -> new LongAdder())
+                    .decrement();
             //注册中心下线
             deviceRegistry.getDevice(client.getDeviceId()).offline();
             //加入关闭连接队列

@@ -28,6 +28,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
@@ -98,6 +99,10 @@ public class MqttServer extends AbstractVerticle {
                 });
     }
 
+    protected String getClientId(MqttEndpoint endpoint) {
+        return endpoint.clientIdentifier();
+    }
+
     protected void doConnect(MqttEndpoint endpoint) {
         try {
             if (endpoint.auth() == null) {
@@ -110,7 +115,7 @@ public class MqttServer extends AbstractVerticle {
                 endpoint.reject(MqttConnectReturnCode.CONNECTION_REFUSED_SERVER_UNAVAILABLE);
                 return;
             }
-            String clientId = endpoint.clientIdentifier();
+            String clientId = getClientId(endpoint);
             String userName = endpoint.auth().getUsername();
             String passWord = endpoint.auth().getPassword();
             DeviceOperation operation = registry.getDevice(clientId);
@@ -128,7 +133,23 @@ public class MqttServer extends AbstractVerticle {
                     endpoint.reject(MqttConnectReturnCode.CONNECTION_REFUSED_SERVER_UNAVAILABLE);
                 } else {
                     if (response.isSuccess()) {
-                        MqttDeviceSession session = new MqttDeviceSession(endpoint, () -> registry.getDevice(clientId));
+                        String deviceId = Optional.ofNullable(response.getDeviceId()).orElse(clientId);
+                        String sessionId = deviceId;
+                        //返回了新的deviceId,可能是多个设备公用一个设备注册认证.或者自动注册的设备.
+                        if (!deviceId.equals(clientId)) {
+                            if (registry.getDevice(deviceId).getState() == DeviceState.unknown) {
+                                logger.info("设备[{}]认证通过,但是返回的新设备ID[{}]未注册", clientId, deviceId);
+                                endpoint.reject(MqttConnectReturnCode.CONNECTION_REFUSED_BAD_USER_NAME_OR_PASSWORD);
+                                return;
+                            }
+                            //构造sessionId
+                            sessionId = clientId.concat(":").concat(deviceId);
+                        }
+
+                        MqttDeviceSession session = new MqttDeviceSession(sessionId, endpoint, registry::getDevice);
+
+                        session.setDeviceId(deviceId);
+
                         accept(endpoint, session);
                     } else if (401 == response.getCode()) {
                         logger.info("设备[{}:{}]认证未通过:{}", clientId, userName, response.getMessage());
@@ -145,10 +166,9 @@ public class MqttServer extends AbstractVerticle {
         }
     }
 
-    protected void doCloseEndpoint(MqttEndpoint client) {
-        String clientId = client.clientIdentifier();
-        logger.debug("关闭客户端[{}]MQTT连接", clientId);
-        DeviceSession old = deviceSessionManager.unregister(clientId);
+    protected void doCloseEndpoint(MqttEndpoint client, String deviceId) {
+        logger.debug("关闭客户端[{}]MQTT连接", deviceId);
+        DeviceSession old = deviceSessionManager.unregister(deviceId);
         if (old == null) {
             if (client.isConnected()) {
                 client.close();
@@ -157,11 +177,11 @@ public class MqttServer extends AbstractVerticle {
     }
 
     protected void accept(MqttEndpoint endpoint, MqttDeviceSession session) {
-        String clientId = endpoint.clientIdentifier();
+        String deviceId = session.getDeviceId();
         try {
             //注册
             deviceSessionManager.register(session);
-            logger.debug("MQTT客户端[{}]建立连接", clientId);
+            logger.debug("MQTT客户端[{}]建立连接", deviceId);
             endpoint
                     //订阅请求
                     .subscribeHandler(subscribe -> {
@@ -170,7 +190,7 @@ public class MqttServer extends AbstractVerticle {
                                 .map(MqttTopicSubscription::qualityOfService)
                                 .collect(Collectors.toList());
                         if (logger.isDebugEnabled()) {
-                            logger.debug("SUBSCRIBE: [{}] 订阅topics {} messageId={}", clientId,
+                            logger.debug("SUBSCRIBE: [{}] 订阅topics {} messageId={}", deviceId,
                                     subscribe.topicSubscriptions()
                                             .stream()
                                             .collect(Collectors.toMap(MqttTopicSubscription::topicName, MqttTopicSubscription::qualityOfService))
@@ -179,29 +199,29 @@ public class MqttServer extends AbstractVerticle {
                         endpoint.subscribeAcknowledge(subscribe.messageId(), grantedQosLevels);
                     })
                     //QoS 1 PUBACK
-                    .publishAcknowledgeHandler(messageId -> logger.debug("PUBACK: [{}]发送消息[{}]已确认.", clientId, messageId))
+                    .publishAcknowledgeHandler(messageId -> logger.debug("PUBACK: [{}]发送消息[{}]已确认.", deviceId, messageId))
                     //QoS 2  PUBREC
                     .publishReceivedHandler(messageId -> {
-                        logger.debug("PUBREC: [{}]的消息[{}]已收到.", clientId, messageId);
+                        logger.debug("PUBREC: [{}]的消息[{}]已收到.", deviceId, messageId);
                         endpoint.publishRelease(messageId);
                     })
                     //QoS 2  PUBREL
                     .publishReleaseHandler(messageId -> {
-                        logger.debug("PUBREL: 释放[{}]消息:{}", clientId, messageId);
+                        logger.debug("PUBREL: 释放[{}]消息:{}", deviceId, messageId);
                         endpoint.publishComplete(messageId);
                     })
                     //QoS 2  PUBCOMP
-                    .publishCompletionHandler(messageId -> logger.debug("PUBCOMP: [{}]消息[{}]处理完成.", clientId, messageId))
+                    .publishCompletionHandler(messageId -> logger.debug("PUBCOMP: [{}]消息[{}]处理完成.", deviceId, messageId))
 
                     //取消订阅 UNSUBSCRIBE
                     .unsubscribeHandler(unsubscribe -> {
-                        logger.debug("UNSUBSCRIBE: [{}]取消订阅:{}", clientId, unsubscribe.topics());
+                        logger.debug("UNSUBSCRIBE: [{}]取消订阅:{}", deviceId, unsubscribe.topics());
                         endpoint.unsubscribeAcknowledge(unsubscribe.messageId());
                     })
                     //断开连接 DISCONNECT
                     .disconnectHandler(v -> {
-                        logger.debug("MQTT客户端[{}]断开连接", clientId);
-                        doCloseEndpoint(endpoint);
+                        logger.debug("MQTT客户端[{}]断开连接", deviceId);
+                        doCloseEndpoint(endpoint, deviceId);
                     })
                     //接收客户端推送的消息
                     .publishHandler(message -> {
@@ -209,11 +229,11 @@ public class MqttServer extends AbstractVerticle {
                         String topicName = message.topicName();
                         Buffer buffer = message.payload();
                         if (logger.isDebugEnabled()) {
-                            logger.debug("收到设备[{}]消息[{}:{}]=>{}", clientId, topicName, message.messageId(), buffer.toString());
+                            logger.debug("收到设备[{}]消息[{}:{}]=>{}", deviceId, topicName, message.messageId(), buffer.toString());
                         }
                         try {
-                            EncodedMessage encodedMessage = new VertxMqttMessage(clientId, message);
-                            //转换消息未可读对象
+                            EncodedMessage encodedMessage = new VertxMqttMessage(deviceId, message);
+                            //转换消息为可读到消息对象
                             DeviceMessage deviceMessage = session.getProtocolSupport()
                                     .getMessageCodec()
                                     .decode(Transport.MQTT, new FromDeviceMessageContext() {
@@ -229,7 +249,7 @@ public class MqttServer extends AbstractVerticle {
 
                                         @Override
                                         public void disconnect() {
-                                            doCloseEndpoint(endpoint);
+                                            doCloseEndpoint(endpoint, deviceId);
                                         }
 
                                         @Override
@@ -248,7 +268,7 @@ public class MqttServer extends AbstractVerticle {
                                 messageConsumer.accept(session, deviceMessage);
                             }
                         } catch (Throwable e) {
-                            logger.error("处理设备[{}]消息[{}]:\n{}\n失败", clientId, topicName, buffer.toString(), e);
+                            logger.error("处理设备[{}]消息[{}]:\n{}\n失败", deviceId, topicName, buffer.toString(), e);
                         } finally {
                             if (message.qosLevel() == MqttQoS.AT_LEAST_ONCE) {
                                 endpoint.publishAcknowledge(message.messageId());
@@ -258,14 +278,14 @@ public class MqttServer extends AbstractVerticle {
                         }
                     })
                     .exceptionHandler(e -> {
-                        logger.debug("MQTT客户端[{}]连接错误", clientId, e);
-                        doCloseEndpoint(endpoint);
+                        logger.debug("MQTT客户端[{}]连接错误", deviceId, e);
+                        doCloseEndpoint(endpoint, deviceId);
                     })
-                    .closeHandler(v -> doCloseEndpoint(endpoint))
+                    .closeHandler(v -> doCloseEndpoint(endpoint, deviceId))
                     .accept(false);
         } catch (Exception e) {
-            logger.error("建立MQTT连接失败,client:{}", clientId, e);
-            doCloseEndpoint(endpoint);
+            logger.error("建立MQTT连接失败,client:{}", deviceId, e);
+            doCloseEndpoint(endpoint, deviceId);
         }
     }
 }

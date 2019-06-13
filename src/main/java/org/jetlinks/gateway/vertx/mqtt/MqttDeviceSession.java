@@ -4,6 +4,7 @@ import io.netty.handler.codec.mqtt.MqttQoS;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.mqtt.MqttEndpoint;
 import lombok.Getter;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.jetlinks.core.ProtocolSupport;
 import org.jetlinks.core.device.DeviceOperation;
@@ -13,7 +14,7 @@ import org.jetlinks.core.message.codec.Transport;
 import org.jetlinks.gateway.session.DeviceSession;
 
 import java.nio.charset.StandardCharsets;
-import java.util.function.Supplier;
+import java.util.function.Function;
 
 /**
  * @author zhouhao
@@ -25,7 +26,7 @@ public class MqttDeviceSession implements DeviceSession {
     private MqttEndpoint endpoint;
 
     @Getter
-    private Supplier<DeviceOperation> operationSupplier;
+    private  Function<String,DeviceOperation>  operationSupplier;
 
     private long connectTime = System.currentTimeMillis();
 
@@ -33,8 +34,15 @@ public class MqttDeviceSession implements DeviceSession {
 
     private int keepAliveTimeOut;
 
-    public MqttDeviceSession(MqttEndpoint endpoint, Supplier<DeviceOperation> operation) {
+    @Setter
+    private String deviceId;
+
+    @Getter
+    private String id;
+
+    public MqttDeviceSession(String id, MqttEndpoint endpoint, Function<String,DeviceOperation> operation) {
         endpoint.pingHandler(r -> ping());
+        this.id=id;
         this.endpoint = endpoint;
         this.operationSupplier = operation;
         //ping 超时时间
@@ -48,7 +56,7 @@ public class MqttDeviceSession implements DeviceSession {
 
     @Override
     public DeviceOperation getOperation() {
-        return operationSupplier.get();
+        return operationSupplier.apply(deviceId);
     }
 
     @Override
@@ -57,13 +65,8 @@ public class MqttDeviceSession implements DeviceSession {
     }
 
     @Override
-    public String getId() {
-        return getDeviceId();
-    }
-
-    @Override
     public String getDeviceId() {
-        return endpoint.clientIdentifier();
+        return deviceId == null ? endpoint.clientIdentifier() : deviceId;
     }
 
     @Override

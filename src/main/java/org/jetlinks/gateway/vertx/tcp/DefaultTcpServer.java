@@ -6,6 +6,7 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.jetlinks.core.ProtocolSupports;
+import org.jetlinks.core.device.AuthenticationResponse;
 import org.jetlinks.core.device.DeviceOperation;
 import org.jetlinks.core.message.DeviceMessage;
 import org.jetlinks.core.message.DeviceMessageReply;
@@ -17,6 +18,7 @@ import org.jetlinks.gateway.session.DeviceSession;
 import org.jetlinks.gateway.vertx.tcp.message.MessageType;
 import org.jetlinks.gateway.vertx.tcp.message.TcpMessageCodec;
 
+import java.util.concurrent.CompletionStage;
 import java.util.function.BiConsumer;
 
 @Slf4j
@@ -34,7 +36,7 @@ public abstract class DefaultTcpServer extends TcpServer {
     @Setter
     private BiConsumer<DeviceSession, DeviceMessage> deviceMessageHandler;
 
-    protected abstract TcpAuthenticationResponse doAuth(NetSocket socket, Buffer payload);
+    protected abstract CompletionStage<AuthenticationResponse> doAuth(NetSocket socket, Buffer payload);
 
     protected abstract void handleNoRegister(NetSocket socket);
 
@@ -55,27 +57,36 @@ public abstract class DefaultTcpServer extends TcpServer {
     }
 
     protected void handlePing(NetSocket socket) {
-        log.info("TCP ping from [{}] ", socket.remoteAddress());
+        log.debug("TCP ping from [{}] ", socket.remoteAddress());
         // String id = createClientId(socket);
     }
 
     protected void handleMessage(NetSocket socket, MessageType messageType, Buffer payload) {
         //授权
         if (messageType == MessageType.AUTH) {
-            TcpAuthenticationResponse response = doAuth(socket, payload);
-            if (response.isSuccess()) {
-                TcpDeviceSession session = new TcpDeviceSession() {
-                    @Override
-                    public void send(EncodedMessage encodedMessage) {
-                        DefaultTcpServer.this.send(socket, MessageType.MESSAGE, Buffer.buffer(encodedMessage.getByteBuf()));
-                    }
-                };
-                session.setId(createClientId(socket));
-                session.setDeviceId(response.getDeviceId());
-                session.setOperationSupplier(getRegistry()::getDevice);
-                session.setSocket(socket);
-                acceptConnect(session);
-            }
+            doAuth(socket, payload)
+                    .whenComplete((response, throwable) -> {
+                        if (response == null) {
+                            log.error("TCP 认证失败!", throwable);
+                            return;
+                        }
+                        if (response.isSuccess()) {
+                            TcpDeviceSession session = new TcpDeviceSession() {
+                                @Override
+                                public void send(EncodedMessage encodedMessage) {
+                                    DefaultTcpServer.this.send(socket, MessageType.MESSAGE, Buffer.buffer(encodedMessage.getByteBuf()));
+                                }
+                            };
+                            session.setId(createClientId(socket));
+                            session.setDeviceId(response.getDeviceId());
+                            session.setOperationSupplier(getRegistry()::getDevice);
+                            session.setSocket(socket);
+                            acceptConnect(session);
+                        } else {
+                            log.info("TCP 认证失败:{}", response.getMessage());
+                        }
+                    });
+
         } else { //消息
             String id = createClientId(socket);
             DeviceSession session = getDeviceSessionManager().getSession(id);

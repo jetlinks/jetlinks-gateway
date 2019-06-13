@@ -71,7 +71,6 @@ public class MqttServerTest {
         deviceSessionManager.setDeviceMessageHandler(deviceMessageHandler = handler);
         deviceSessionManager.setExecutorService(executorService);
         deviceSessionManager.setDeviceRegistry(registry);
-        deviceSessionManager.setServerId("test");
         deviceSessionManager.setProtocolSupports(protocolSupports);
         deviceSessionManager.init();
         MqttServerOptions mqttServerOptions = new MqttServerOptions();
