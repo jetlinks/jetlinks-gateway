@@ -292,11 +292,11 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
         //每30秒检查一次设备连接情况
         executorService.scheduleAtFixedRate(() -> {
             long startTime = System.currentTimeMillis();
-          //  Map<Transport, LongAdder> real = new ConcurrentHashMap<>();
+            //  Map<Transport, LongAdder> real = new ConcurrentHashMap<>();
 
             List<String> notAliveClients = repository.values()
                     .parallelStream()
-                    .peek(session -> {
+                    .filter(session -> {
                         if (session.isAlive()) {
                             //real.computeIfAbsent(session.getTransport(), (__) -> new LongAdder()).increment();
                             //检查注册中心的信息是否与当前服务器一致
@@ -306,9 +306,10 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
                                 log.warn("设备[{}]状态不正确!", session.getDeviceId());
                                 session.getOperation().online(serverId, session.getId());
                             }
+                            return false;
                         }
+                        return true;
                     })
-                    .filter(session -> !session.isAlive())
                     .map(DeviceSession::getId)
                     .collect(Collectors.toList());
 
@@ -324,9 +325,9 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
             gatewayServerMonitor.getCurrentServerInfo()
                     .getAllTransport()
                     .forEach(transport -> gatewayServerMonitor.reportDeviceCount(transport,
-                                    Optional.ofNullable(transportCounter.get(transport))
-                                            .map(LongAdder::longValue)
-                                            .orElse(0L)));
+                            Optional.ofNullable(transportCounter.get(transport))
+                                    .map(LongAdder::longValue)
+                                    .orElse(0L)));
 
             //执行任务
             int jobNumber = 0;
