@@ -26,7 +26,7 @@ public class MqttDeviceSession implements DeviceSession {
     private MqttEndpoint endpoint;
 
     @Getter
-    private  Function<String,DeviceOperation>  operationSupplier;
+    private Function<String, DeviceOperation> operationSupplier;
 
     private long connectTime = System.currentTimeMillis();
 
@@ -40,9 +40,9 @@ public class MqttDeviceSession implements DeviceSession {
     @Getter
     private String id;
 
-    public MqttDeviceSession(String id, MqttEndpoint endpoint, Function<String,DeviceOperation> operation) {
+    public MqttDeviceSession(String id, MqttEndpoint endpoint, Function<String, DeviceOperation> operation) {
         endpoint.pingHandler(r -> ping());
-        this.id=id;
+        this.id = id;
         this.endpoint = endpoint;
         this.operationSupplier = operation;
         //ping 超时时间
