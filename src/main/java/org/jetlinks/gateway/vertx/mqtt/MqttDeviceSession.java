@@ -116,11 +116,12 @@ public class MqttDeviceSession implements DeviceSession {
     @Override
     public boolean isAlive() {
         boolean isKeepAliveTimeOut = System.currentTimeMillis() - lastPingTime > keepAliveTimeOut;
+        boolean connected = endpoint.isConnected();
 
-        if (isKeepAliveTimeOut && log.isInfoEnabled()) {
+        if (connected && isKeepAliveTimeOut && log.isInfoEnabled()) {
             log.info("设备[{}],ping超时[{}s]!", getDeviceId(), endpoint.keepAliveTimeSeconds());
         }
-        return endpoint.isConnected() && !isKeepAliveTimeOut;
+        return connected && !isKeepAliveTimeOut;
     }
 
     @Override
