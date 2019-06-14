@@ -6,11 +6,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.jetlinks.core.message.codec.Transport;
 import org.redisson.api.RMap;
 import org.redisson.api.RQueue;
+import org.redisson.api.RTopic;
 import org.redisson.api.RedissonClient;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -53,6 +55,12 @@ public class RedissonGatewayServerMonitor implements GatewayServerMonitor {
 
     private RQueue<String> serverDownQueue;
 
+    private Map<String, Object> localCache = new ConcurrentHashMap<>();
+
+    private Map<String, GatewayServerInfo> infoCache = new ConcurrentHashMap<>();
+
+    private RTopic serverChangedTopic;
+
     public RedissonGatewayServerMonitor(String currentServerId, RedissonClient redissonClient, ScheduledExecutorService executorService) {
         this.allServerId = redissonClient.getMap(getRedisKey("server:all"));
         this.client = redissonClient;
@@ -60,25 +68,30 @@ public class RedissonGatewayServerMonitor implements GatewayServerMonitor {
         this.executorService = executorService;
         current = newGatewayServerInfo(currentServerId);
         serverDownQueue = client.getQueue("device-gateway-server-down");
+        serverChangedTopic = client.getTopic("device-gateway-server-changed");
     }
 
     private GatewayServerInfo newGatewayServerInfo(String serverId) {
-        return new GatewayServerInfo() {
+        return infoCache.computeIfAbsent(serverId, _serverId -> new GatewayServerInfo() {
+
             @Override
             public String getId() {
-                return serverId;
+                return _serverId;
             }
 
             @Override
+            @SuppressWarnings("all")
             public List<String> getTransportHosts(Transport transport) {
-
-                return new ArrayList<>(client.getSet(getRedisKey(transport_hosts, serverId, transport.name())));
+                String key = getRedisKey(transport_hosts, _serverId, transport.name());
+                return (List<String>) localCache.computeIfAbsent(key, _key -> new ArrayList<>(client.getSet(_key)));
             }
 
             @Override
+            @SuppressWarnings("all")
             public List<Transport> getAllTransport() {
+                String key = getRedisKey(transport_all_support, _serverId);
 
-                return new ArrayList<>(client.getSet(getRedisKey(transport_all_support, serverId)));
+                return (List<Transport>) localCache.computeIfAbsent(key, _key -> new ArrayList<>(client.getSet(_key)));
             }
 
             @Override
@@ -91,7 +104,7 @@ public class RedissonGatewayServerMonitor implements GatewayServerMonitor {
 
             @Override
             public long getDeviceConnectionTotal(Transport transport) {
-                return client.getAtomicLong(getRedisKey(transport_connection_total, serverId, transport.name())).get();
+                return client.getAtomicLong(getRedisKey(transport_connection_total, _serverId, transport.name())).get();
             }
 
             @Override
@@ -101,7 +114,8 @@ public class RedissonGatewayServerMonitor implements GatewayServerMonitor {
                         .stream()
                         .collect(Collectors.toMap(Function.identity(), this::getDeviceConnectionTotal));
             }
-        };
+        });
+
     }
 
     @Override
@@ -135,6 +149,9 @@ public class RedissonGatewayServerMonitor implements GatewayServerMonitor {
             for (Consumer<String> consumer : downListener) {
                 consumer.accept(serverId);
             }
+            infoCache.remove(serverId);
+            localCache.clear();
+            serverChangedTopic.publish(serverId);
         }
     }
 
@@ -145,6 +162,7 @@ public class RedissonGatewayServerMonitor implements GatewayServerMonitor {
         if (!startup) {
             doStartup();
         }
+        serverChangedTopic.publish(currentServerId);
     }
 
     @Override
@@ -184,6 +202,7 @@ public class RedissonGatewayServerMonitor implements GatewayServerMonitor {
                 });
 
         client.getSet(getRedisKey(transport_all_support, currentServerId)).delete();
+        serverChangedTopic.publish(currentServerId);
     }
 
     @PreDestroy
@@ -200,6 +219,12 @@ public class RedissonGatewayServerMonitor implements GatewayServerMonitor {
         startup = true;
         allServerId.put(currentServerId, System.currentTimeMillis());
         serverDownQueue.remove(currentServerId);
+
+        serverChangedTopic.addListener(String.class, (channel, msg) -> {
+            infoCache.remove(msg);
+            localCache.clear();
+        });
+
         executorService.scheduleAtFixedRate(() -> {
             log.debug("device gateway server [{}] keepalive", currentServerId);
             allServerId.put(currentServerId, System.currentTimeMillis());
