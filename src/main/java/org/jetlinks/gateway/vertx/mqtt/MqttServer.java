@@ -245,6 +245,34 @@ public class MqttServer extends AbstractVerticle {
         }
     }
 
+    protected DeviceMessage decodeMessage(DeviceSession session, MqttEndpoint endpoint, VertxMqttMessage message) {
+        String deviceId = message.getDeviceId();
+        return session.getProtocolSupport()
+                .getMessageCodec()
+                .decode(Transport.MQTT, new FromDeviceMessageContext() {
+                    @Override
+                    public DeviceOperation getDeviceOperation() {
+                        return session.getOperation();
+                    }
+
+                    @Override
+                    public void sendToDevice(EncodedMessage message) {
+                        session.send(message);
+                    }
+
+                    @Override
+                    public void disconnect() {
+                        doCloseEndpoint(endpoint, deviceId);
+                    }
+
+                    @Override
+                    public EncodedMessage getMessage() {
+                        return message;
+                    }
+
+                });
+    }
+
     protected void handleMqttMessage(DeviceSession session, MqttEndpoint endpoint, MqttPublishMessage message) {
         String deviceId = session.getDeviceId();
         //设备推送了消息
@@ -254,32 +282,9 @@ public class MqttServer extends AbstractVerticle {
             logger.debug("收到设备[{}]消息[{}:{}]=>{}", deviceId, topicName, message.messageId(), buffer.toString());
         }
         try {
-            EncodedMessage encodedMessage = new VertxMqttMessage(deviceId, message);
+            VertxMqttMessage encodedMessage = new VertxMqttMessage(deviceId, message);
             //转换消息为可读到消息对象
-            DeviceMessage deviceMessage = session.getProtocolSupport()
-                    .getMessageCodec()
-                    .decode(Transport.MQTT, new FromDeviceMessageContext() {
-                        @Override
-                        public DeviceOperation getDeviceOperation() {
-                            return session.getOperation();
-                        }
-
-                        @Override
-                        public void sendToDevice(EncodedMessage message) {
-                            session.send(message);
-                        }
-
-                        @Override
-                        public void disconnect() {
-                            doCloseEndpoint(endpoint, deviceId);
-                        }
-
-                        @Override
-                        public EncodedMessage getMessage() {
-                            return encodedMessage;
-                        }
-
-                    });
+            DeviceMessage deviceMessage = decodeMessage(session, endpoint, encodedMessage);
             //处理消息回复
             if (deviceMessage instanceof DeviceMessageReply) {
                 getDeviceSessionManager()
