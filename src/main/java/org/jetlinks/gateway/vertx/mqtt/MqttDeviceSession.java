@@ -32,6 +32,8 @@ public class MqttDeviceSession implements DeviceSession {
 
     private volatile long lastPingTime = System.currentTimeMillis();
 
+    private boolean checkPingTime = !Boolean.getBoolean("mqtt.check-ping.disable");
+
     private int keepAliveTimeOut;
 
     @Setter
@@ -115,6 +117,9 @@ public class MqttDeviceSession implements DeviceSession {
 
     @Override
     public boolean isAlive() {
+        if (!checkPingTime) {
+            return endpoint.isConnected();
+        }
         boolean isKeepAliveTimeOut = System.currentTimeMillis() - lastPingTime > keepAliveTimeOut;
         boolean connected = endpoint.isConnected();
 
