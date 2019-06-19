@@ -14,6 +14,7 @@ import org.jetlinks.core.message.*;
 import org.jetlinks.core.message.codec.EncodedMessage;
 import org.jetlinks.core.message.codec.MessageEncodeContext;
 import org.jetlinks.core.message.codec.Transport;
+import org.jetlinks.core.message.event.EventMessage;
 import org.jetlinks.core.message.function.FunctionInvokeMessageReply;
 import org.jetlinks.core.utils.IdUtils;
 import org.jetlinks.gateway.monitor.GatewayServerMonitor;
@@ -192,7 +193,10 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
                 return;
             }
         }
-        doReply(reply);
+        if(!(reply instanceof EventMessage)){
+            doReply(reply);
+        }
+
     }
 
     protected DeviceMessage createChildDeviceMessage(DeviceOperation childDevice, DeviceMessage message) {
