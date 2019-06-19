@@ -13,6 +13,8 @@ import org.jetlinks.core.ProtocolSupports;
 import org.jetlinks.core.device.DeviceOperation;
 import org.jetlinks.core.device.registry.DeviceRegistry;
 import org.jetlinks.core.message.DeviceMessage;
+import org.jetlinks.core.message.DeviceMessageReply;
+import org.jetlinks.core.message.EmptyDeviceMessage;
 import org.jetlinks.core.message.codec.CoAPMessage;
 import org.jetlinks.core.message.codec.EncodedMessage;
 import org.jetlinks.core.message.codec.FromDeviceMessageContext;
@@ -67,6 +69,7 @@ public abstract class CoAPServer extends UDPServer {
         }
         UDPDeviceSession session = getDevice(address, packet);
         if (session != null) {
+            session.ping();
             DeviceOperation deviceOperation = session.getOperation();
             CoAPMessage coapMessage = new CoAPMessage(session.getDeviceId(), packet);
             DeviceMessage message = deviceOperation.getProtocol()
@@ -94,6 +97,12 @@ public abstract class CoAPServer extends UDPServer {
                         }
 
                     });
+            if (message == null || message instanceof EmptyDeviceMessage) {
+                return;
+            }
+            if (message instanceof DeviceMessageReply) {
+                sessionManager.handleDeviceMessageReply(session, ((DeviceMessageReply) message));
+            }
             messageConsumer.accept(session, message);
         }
     }
