@@ -32,7 +32,7 @@ public class MqttDeviceSession implements DeviceSession {
 
     private volatile long lastPingTime = System.currentTimeMillis();
 
-    private boolean checkPingTime = !Boolean.getBoolean("mqtt.check-ping.disable");
+    private boolean checkPingTime = !Boolean.getBoolean("mqtt.check-ping.disabled");
 
     private int keepAliveTimeOut;
 
@@ -43,12 +43,17 @@ public class MqttDeviceSession implements DeviceSession {
     private String id;
 
     public MqttDeviceSession(String id, MqttEndpoint endpoint, Function<String, DeviceOperation> operation) {
-        endpoint.pingHandler(r -> ping());
+        endpoint.pingHandler(r -> {
+            ping();
+            if (!endpoint.isAutoKeepAlive()) {
+                endpoint.pong();
+            }
+        });
         this.id = id;
         this.endpoint = endpoint;
         this.operationSupplier = operation;
         //ping 超时时间
-        keepAliveTimeOut = (endpoint.keepAliveTimeSeconds() + 2) * 1000;
+        keepAliveTimeOut = (endpoint.keepAliveTimeSeconds() + 5) * 1000;
     }
 
     @Override
@@ -110,21 +115,19 @@ public class MqttDeviceSession implements DeviceSession {
     @Override
     public void ping() {
         lastPingTime = System.currentTimeMillis();
-        if (!endpoint.isAutoKeepAlive()) {
-            endpoint.pong();
-        }
     }
 
     @Override
     public boolean isAlive() {
-        if (!checkPingTime) {
-            return endpoint.isConnected();
-        }
-        boolean isKeepAliveTimeOut = System.currentTimeMillis() - lastPingTime > keepAliveTimeOut;
         boolean connected = endpoint.isConnected();
 
+        if (!checkPingTime) {
+            return connected;
+        }
+        boolean isKeepAliveTimeOut = System.currentTimeMillis() - lastPingTime > keepAliveTimeOut;
+
         if (connected && isKeepAliveTimeOut && log.isInfoEnabled()) {
-            log.info("设备[{}],ping超时[{}s]!", getDeviceId(), endpoint.keepAliveTimeSeconds());
+            log.info("设备[{}]已经[{}s]未发送ping", getDeviceId(), (System.currentTimeMillis() - lastPingTime) / 1000);
         }
         return connected && !isKeepAliveTimeOut;
     }

@@ -274,6 +274,7 @@ public class MqttServer extends AbstractVerticle {
     }
 
     protected void handleMqttMessage(DeviceSession session, MqttEndpoint endpoint, MqttPublishMessage message) {
+        session.ping();
         String deviceId = session.getDeviceId();
         //设备推送了消息
         String topicName = message.topicName();
