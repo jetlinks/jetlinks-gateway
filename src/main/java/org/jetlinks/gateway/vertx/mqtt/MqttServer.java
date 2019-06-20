@@ -108,6 +108,10 @@ public class MqttServer extends AbstractVerticle {
     }
 
     protected CompletionStage<AuthenticationResponse> doAuth(MqttEndpoint endpoint) {
+        if (endpoint.auth() == null) {
+            endpoint.reject(MqttConnectReturnCode.CONNECTION_REFUSED_NOT_AUTHORIZED);
+            return CompletableFuture.completedFuture(AuthenticationResponse.error(401, "为提供认证信息"));
+        }
         String clientId = getClientId(endpoint);
         String userName = endpoint.auth().getUsername();
         String passWord = endpoint.auth().getPassword();
@@ -121,10 +125,6 @@ public class MqttServer extends AbstractVerticle {
 
     private void doConnect(MqttEndpoint endpoint) {
         try {
-            if (endpoint.auth() == null) {
-                endpoint.reject(MqttConnectReturnCode.CONNECTION_REFUSED_NOT_AUTHORIZED);
-                return;
-            }
             if (deviceSessionManager.isOutOfMaximumConnectionLimit(Transport.MQTT)) {
                 //当前连接超过了最大连接数
                 logger.info("拒绝客户端连接[{}],已超过最大连接数限制:[{}]!", endpoint.clientIdentifier(), deviceSessionManager.getMaximumConnection(Transport.MQTT));
@@ -132,7 +132,6 @@ public class MqttServer extends AbstractVerticle {
                 return;
             }
             String clientId = getClientId(endpoint);
-
             //进行认证
             doAuth(endpoint)
                     .whenComplete((response, err) -> {
