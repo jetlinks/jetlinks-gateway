@@ -14,6 +14,7 @@ import org.jetlinks.core.message.*;
 import org.jetlinks.core.message.codec.EncodedMessage;
 import org.jetlinks.core.message.codec.MessageEncodeContext;
 import org.jetlinks.core.message.codec.Transport;
+import org.jetlinks.core.message.event.EventMessage;
 import org.jetlinks.core.message.function.FunctionInvokeMessageReply;
 import org.jetlinks.core.utils.IdUtils;
 import org.jetlinks.gateway.monitor.GatewayServerMonitor;
@@ -112,31 +113,36 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
 
     protected void doSend(DeviceMessage message, DeviceSession session) {
         String deviceId = message.getDeviceId();
-        //获取协议并转码
-        EncodedMessage encodedMessage = session.getProtocolSupport()
-                .getMessageCodec()
-                .encode(session.getTransport(), new MessageEncodeContext() {
-                    @Override
-                    public DeviceMessage getMessage() {
-                        return message;
-                    }
+        FunctionInvokeMessageReply reply = FunctionInvokeMessageReply.create();
+        try {
+            //获取协议并转码
+            EncodedMessage encodedMessage = session.getProtocolSupport()
+                    .getMessageCodec()
+                    .encode(session.getTransport(), new MessageEncodeContext() {
+                        @Override
+                        public DeviceMessage getMessage() {
+                            return message;
+                        }
 
-                    @Override
-                    public DeviceOperation getDeviceOperation() {
-                        return deviceRegistry.getDevice(deviceId);
-                    }
-                });
-        //直接发往设备
-        session.send(encodedMessage);
-
-        //如果是异步消息,先直接回复处理中...
-        if (Headers.async.get(message).asBoolean().orElse(false)) {
-            FunctionInvokeMessageReply reply = FunctionInvokeMessageReply.create()
-                    .messageId(message.getMessageId())
+                        @Override
+                        public DeviceOperation getDeviceOperation() {
+                            return deviceRegistry.getDevice(deviceId);
+                        }
+                    });
+            //直接发往设备
+            session.send(encodedMessage);
+            reply.messageId(message.getMessageId())
                     .deviceId(deviceId)
                     .message(ErrorCode.REQUEST_HANDLING.getText())
                     .code(ErrorCode.REQUEST_HANDLING.name())
-                    .success(false);
+                    .success();
+        } catch (Throwable e) {
+            reply.error(e);
+        }
+
+        //如果是异步消息,先直接回复处理中...
+        if (Headers.async.get(message).asBoolean().orElse(false)) {
+
             //直接回复消息
             deviceMessageHandler.reply(reply)
                     .whenComplete((success, error) -> {
@@ -187,7 +193,10 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
                 return;
             }
         }
-        doReply(reply);
+        if(!(reply instanceof EventMessage)){
+            doReply(reply);
+        }
+
     }
 
     protected DeviceMessage createChildDeviceMessage(DeviceOperation childDevice, DeviceMessage message) {

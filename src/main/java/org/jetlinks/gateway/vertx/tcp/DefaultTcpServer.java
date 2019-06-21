@@ -58,7 +58,10 @@ public abstract class DefaultTcpServer extends TcpServer {
 
     protected void handlePing(NetSocket socket) {
         log.debug("TCP ping from [{}] ", socket.remoteAddress());
-        // String id = createClientId(socket);
+        DeviceSession session = getDeviceSessionManager().getSession(createClientId(socket));
+        if (session != null) {
+            session.ping();
+        }
     }
 
     protected void handleMessage(NetSocket socket, MessageType messageType, Buffer payload) {
@@ -94,6 +97,7 @@ public abstract class DefaultTcpServer extends TcpServer {
                 //设备没有注册就发送消息
                 handleNoRegister(socket);
             } else {
+                session.ping();
                 EncodedMessage message = EncodedMessage.simple(session.getDeviceId(), payload.getByteBuf());
                 DeviceMessage deviceMessage = session.getProtocolSupport()
                         .getMessageCodec()
