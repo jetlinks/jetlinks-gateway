@@ -110,7 +110,7 @@ public class MqttServer extends AbstractVerticle {
     protected CompletionStage<AuthenticationResponse> doAuth(MqttEndpoint endpoint) {
         if (endpoint.auth() == null) {
             endpoint.reject(MqttConnectReturnCode.CONNECTION_REFUSED_NOT_AUTHORIZED);
-            return CompletableFuture.completedFuture(AuthenticationResponse.error(401, "为提供认证信息"));
+            return CompletableFuture.completedFuture(AuthenticationResponse.error(401, "未提供认证信息"));
         }
         String clientId = getClientId(endpoint);
         String userName = endpoint.auth().getUsername();
