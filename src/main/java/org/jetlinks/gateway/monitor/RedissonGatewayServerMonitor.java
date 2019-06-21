@@ -157,8 +157,10 @@ public class RedissonGatewayServerMonitor implements GatewayServerMonitor {
 
     @Override
     public synchronized void registerTransport(Transport transport, String... hosts) {
+
         client.getSet(getRedisKey(transport_all_support, currentServerId)).add(transport);
         client.getSet(getRedisKey(transport_hosts, currentServerId, transport.name())).addAll(Arrays.asList(hosts));
+
         if (!startup) {
             doStartup();
         }
@@ -202,14 +204,16 @@ public class RedissonGatewayServerMonitor implements GatewayServerMonitor {
                 });
 
         client.getSet(getRedisKey(transport_all_support, currentServerId)).delete();
-        serverChangedTopic.publish(currentServerId);
+
     }
 
     @PreDestroy
     public void shutdown() {
+        startup=false;
         allServerId.fastRemove(currentServerId);
         serverDownQueue.add(currentServerId);
         clean();
+        serverChangedTopic.publish(currentServerId);
     }
 
     protected synchronized void doStartup() {
@@ -217,6 +221,7 @@ public class RedissonGatewayServerMonitor implements GatewayServerMonitor {
             return;
         }
         startup = true;
+
         allServerId.put(currentServerId, System.currentTimeMillis());
         serverDownQueue.remove(currentServerId);
 
@@ -226,6 +231,9 @@ public class RedissonGatewayServerMonitor implements GatewayServerMonitor {
         });
 
         executorService.scheduleAtFixedRate(() -> {
+            if(!startup){
+                return;
+            }
             log.debug("device gateway server [{}] keepalive", currentServerId);
             allServerId.put(currentServerId, System.currentTimeMillis());
 
@@ -248,7 +256,7 @@ public class RedissonGatewayServerMonitor implements GatewayServerMonitor {
 
     @PostConstruct
     public void startup() {
-
-
+        //初始化先清空全部信息
+        clean();
     }
 }
