@@ -209,7 +209,7 @@ public class RedissonGatewayServerMonitor implements GatewayServerMonitor {
 
     @PreDestroy
     public void shutdown() {
-        startup=false;
+        startup = false;
         allServerId.fastRemove(currentServerId);
         serverDownQueue.add(currentServerId);
         clean();
@@ -231,18 +231,20 @@ public class RedissonGatewayServerMonitor implements GatewayServerMonitor {
         });
 
         executorService.scheduleAtFixedRate(() -> {
-            if(!startup){
+            if (!startup) {
                 return;
             }
             log.debug("device gateway server [{}] keepalive", currentServerId);
             allServerId.put(currentServerId, System.currentTimeMillis());
 
             allServerId.entrySet()
-                    .stream()
-                    .filter(e -> System.currentTimeMillis() - e.getValue() > timeToLive * 1000)
+                    .parallelStream()
                     .map(Map.Entry::getKey)
-                    .filter(Objects::nonNull)
+                    .filter(id->!id.equals(currentServerId))
+                    .filter(id -> client.getTopic("device:state:check:".concat(id)).publish("") <= 0)
+
                     .forEach(this::serverOffline);
+
             //触发服务下线事件
             for (String offlineServer = serverDownQueue.poll()
                  ; offlineServer != null && (!currentServerId.equals(offlineServer))
