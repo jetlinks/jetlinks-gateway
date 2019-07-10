@@ -151,8 +151,6 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
                         }
                     });
         }
-
-
     }
 
     private CompletionStage<Boolean> doReply(DeviceMessageReply reply) {

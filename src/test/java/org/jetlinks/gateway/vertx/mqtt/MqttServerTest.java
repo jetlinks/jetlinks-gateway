@@ -87,7 +87,6 @@ public class MqttServerTest {
             messageConsumer.accept(deviceClient, msg);
         });
 
-        server.setProtocolSupports(protocolSupports);
         server.setRegistry(registry);
         vertx.deployVerticle(server, result -> {
             startResultConsumer.accept(result.succeeded());

@@ -10,7 +10,6 @@ import io.vertx.mqtt.MqttTopicSubscription;
 import io.vertx.mqtt.messages.MqttPublishMessage;
 import lombok.Getter;
 import lombok.Setter;
-import org.jetlinks.core.ProtocolSupports;
 import org.jetlinks.core.device.AuthenticationResponse;
 import org.jetlinks.core.device.DeviceOperation;
 import org.jetlinks.core.device.DeviceState;
@@ -64,10 +63,6 @@ public class MqttServer extends AbstractVerticle {
 
     @Getter
     @Setter
-    private ProtocolSupports protocolSupports;
-
-    @Getter
-    @Setter
     private GatewayServerMonitor gatewayServerMonitor;
 
     @Getter
@@ -77,7 +72,6 @@ public class MqttServer extends AbstractVerticle {
     @Override
     public void start() {
         Objects.requireNonNull(deviceSessionManager);
-        Objects.requireNonNull(protocolSupports);
         Objects.requireNonNull(mqttServerOptions);
         Objects.requireNonNull(vertx);
         Objects.requireNonNull(registry);
