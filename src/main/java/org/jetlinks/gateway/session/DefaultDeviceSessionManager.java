@@ -191,7 +191,7 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
                 return;
             }
         }
-        if(!(reply instanceof EventMessage)){
+        if (!(reply instanceof EventMessage)) {
             doReply(reply);
         }
 
@@ -369,6 +369,12 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
     @Override
     public DeviceSession register(DeviceSession session) {
         DeviceSession old = repository.put(session.getDeviceId(), session);
+        if (old != null) {
+            //清空sessionId不同
+            if (!old.getId().equals(old.getDeviceId())) {
+                repository.remove(old.getId());
+            }
+        }
         if (!session.getId().equals(session.getDeviceId())) {
             repository.put(session.getId(), session);
         }
