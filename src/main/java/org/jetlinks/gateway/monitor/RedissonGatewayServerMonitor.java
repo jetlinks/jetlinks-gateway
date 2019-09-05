@@ -240,9 +240,8 @@ public class RedissonGatewayServerMonitor implements GatewayServerMonitor {
             allServerId.entrySet()
                     .parallelStream()
                     .map(Map.Entry::getKey)
-                    .filter(id->!id.equals(currentServerId))
-                    .filter(id -> client.getTopic("device:state:check:".concat(id)).publish("") <= 0)
-
+                    .filter(id -> !id.equals(currentServerId))
+                    .filter(id -> client.getTopic("device:state:check:".concat(id)).countSubscribers() <= 0)
                     .forEach(this::serverOffline);
 
             //触发服务下线事件
