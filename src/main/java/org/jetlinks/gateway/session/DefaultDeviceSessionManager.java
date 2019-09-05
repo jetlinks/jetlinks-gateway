@@ -238,7 +238,6 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
         Objects.requireNonNull(deviceRegistry, "deviceRegistry");
         Objects.requireNonNull(deviceMessageHandler, "deviceMessageHandler");
         Objects.requireNonNull(gatewayServerMonitor, "gatewayServerMonitor");
-        Objects.requireNonNull(protocolSupports, "protocolSupports");
         Objects.requireNonNull(executorService, "executorService");
 
         serverId = gatewayServerMonitor.getCurrentServerInfo().getId();
