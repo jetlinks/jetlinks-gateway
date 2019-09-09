@@ -11,11 +11,11 @@ import org.jetlinks.core.device.registry.DeviceMessageHandler;
 import org.jetlinks.core.device.registry.DeviceRegistry;
 import org.jetlinks.core.enums.ErrorCode;
 import org.jetlinks.core.message.*;
+import org.jetlinks.core.message.codec.EmptyMessage;
 import org.jetlinks.core.message.codec.EncodedMessage;
-import org.jetlinks.core.message.codec.MessageEncodeContext;
+import org.jetlinks.core.message.codec.ToDeviceMessageContext;
 import org.jetlinks.core.message.codec.Transport;
 import org.jetlinks.core.message.event.EventMessage;
-import org.jetlinks.core.message.function.FunctionInvokeMessageReply;
 import org.jetlinks.core.utils.IdUtils;
 import org.jetlinks.gateway.monitor.GatewayServerMonitor;
 import org.slf4j.Logger;
@@ -110,35 +110,66 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
                 .forEach(this::unregister);
     }
 
-
     protected void doSend(DeviceMessage message, DeviceSession session) {
-        String deviceId = message.getDeviceId();
-        FunctionInvokeMessageReply reply = FunctionInvokeMessageReply.create();
-        try {
-            //获取协议并转码
-            EncodedMessage encodedMessage = session.getProtocolSupport()
-                    .getMessageCodec()
-                    .encode(session.getTransport(), new MessageEncodeContext() {
-                        @Override
-                        public DeviceMessage getMessage() {
-                            return message;
-                        }
 
-                        @Override
-                        public DeviceOperation getDeviceOperation() {
-                            return deviceRegistry.getDevice(deviceId);
+        DeviceMessageReply reply;
+        if (message instanceof RepayableDeviceMessage) {
+            reply = ((RepayableDeviceMessage) message).newReply();
+        } else {
+            reply = new CommonDeviceMessageReply();
+        }
+        if (message instanceof DisconnectDeviceMessage) {
+            unregister(session.getId());
+            reply.success();
+            deviceMessageHandler.reply(reply)
+                    .whenComplete((success, error) -> {
+                        if (error != null) {
+                            log.error("回复断开连接失败: {}", reply, error);
                         }
                     });
-            //直接发往设备
-            session.send(encodedMessage);
-            reply.messageId(message.getMessageId())
-                    .deviceId(deviceId)
-                    .message(ErrorCode.REQUEST_HANDLING.getText())
-                    .code(ErrorCode.REQUEST_HANDLING.name())
-                    .success();
-        } catch (Throwable e) {
-            reply.error(e);
+            return;
+        } else {
+            String deviceId = message.getDeviceId();
+            try {
+                //获取协议并转码
+                EncodedMessage encodedMessage = session.getProtocolSupport()
+                        .getMessageCodec()
+                        .encode(session.getTransport(), new ToDeviceMessageContext() {
+                            @Override
+                            public void sendToDevice(EncodedMessage message) {
+                                session.send(message);
+                            }
+
+                            @Override
+                            public void disconnect() {
+                                unregister(deviceId);
+                            }
+
+                            @Override
+                            public DeviceMessage getMessage() {
+                                return message;
+                            }
+
+                            @Override
+                            public DeviceOperation getDeviceOperation() {
+                                return deviceRegistry.getDevice(deviceId);
+                            }
+                        });
+                if (encodedMessage == null || encodedMessage instanceof EmptyMessage) {
+                    return;
+                }
+                //直接发往设备
+                session.send(encodedMessage);
+                reply.messageId(message.getMessageId())
+                        .deviceId(deviceId)
+                        .message(ErrorCode.REQUEST_HANDLING.getText())
+                        .code(ErrorCode.REQUEST_HANDLING.name())
+                        .success();
+            } catch (Throwable e) {
+                reply.error(e);
+            }
         }
+
 
         //如果是异步消息,先直接回复处理中...
         if (Headers.async.get(message).asBoolean().orElse(false)) {
