@@ -111,17 +111,18 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
     }
 
     protected void doSend(DeviceMessage message, DeviceSession session) {
-
+        String deviceId = message.getDeviceId();
         DeviceMessageReply reply;
         if (message instanceof RepayableDeviceMessage) {
             reply = ((RepayableDeviceMessage) message).newReply();
         } else {
             reply = new CommonDeviceMessageReply();
         }
+        reply.messageId(message.getMessageId()).deviceId(deviceId);
+
         if (message instanceof DisconnectDeviceMessage) {
             unregister(session.getId());
-            reply.success();
-            deviceMessageHandler.reply(reply)
+            deviceMessageHandler.reply(reply.success())
                     .whenComplete((success, error) -> {
                         if (error != null) {
                             log.error("回复断开连接失败: {}", reply, error);
@@ -129,7 +130,7 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
                     });
             return;
         } else {
-            String deviceId = message.getDeviceId();
+
             try {
                 //获取协议并转码
                 EncodedMessage encodedMessage = session.getProtocolSupport()
@@ -160,9 +161,7 @@ public class DefaultDeviceSessionManager implements DeviceSessionManager {
                 }
                 //直接发往设备
                 session.send(encodedMessage);
-                reply.messageId(message.getMessageId())
-                        .deviceId(deviceId)
-                        .message(ErrorCode.REQUEST_HANDLING.getText())
+                reply.message(ErrorCode.REQUEST_HANDLING.getText())
                         .code(ErrorCode.REQUEST_HANDLING.name())
                         .success();
             } catch (Throwable e) {
