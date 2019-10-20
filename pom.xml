@@ -32,7 +32,7 @@
     </developers>
 
     <properties>
-        <vertx.version>3.6.3</vertx.version>
+        <vertx.version>3.8.3</vertx.version>
     </properties>
 
     <build>
@@ -155,15 +155,9 @@
 
         <dependency>
             <groupId>org.jetlinks</groupId>
-            <artifactId>jetlinks-registry-redis</artifactId>
+            <artifactId>jetlinks-supports</artifactId>
             <version>${project.version}</version>
             <scope>test</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>org.redisson</groupId>
-            <artifactId>redisson</artifactId>
-            <optional>true</optional>
         </dependency>
 
         <dependency>
@@ -220,6 +214,15 @@
             <artifactId>spring-boot-configuration-processor</artifactId>
             <optional>true</optional>
         </dependency>
+
+        <!-- https://mvnrepository.com/artifact/org.eclipse.leshan/leshan-server-cf -->
+        <dependency>
+            <groupId>org.eclipse.leshan</groupId>
+            <artifactId>leshan-server-cf</artifactId>
+            <version>1.0.0-M11</version>
+            <optional>true</optional>
+        </dependency>
+
 
     </dependencies>
 

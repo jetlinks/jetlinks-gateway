@@ -1,6 +1,8 @@
 package org.jetlinks.gateway.vertx.mqtt;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+import io.vertx.mqtt.MqttWill;
 import io.vertx.mqtt.messages.MqttPublishMessage;
 import lombok.AllArgsConstructor;
 import org.jetlinks.core.message.codec.MqttMessage;
@@ -8,42 +10,47 @@ import org.jetlinks.core.message.codec.MqttMessage;
 import javax.annotation.Nonnull;
 
 @AllArgsConstructor
-public class VertxMqttMessage implements MqttMessage {
+public class VertxMqttWillMessage implements MqttMessage {
 
     private String deviceId;
 
-    private MqttPublishMessage message;
+    private MqttWill will;
 
     @Override
     public int getMessageId() {
-        return message.messageId();
+        return -1;
     }
 
     @Nonnull
     @Override
     public String getTopic() {
-        return message.topicName();
+        return will.getWillTopic();
     }
 
     @Override
     public int getQosLevel() {
-        return message.qosLevel().value();
+        return will.getWillQos();
     }
 
     @Override
     public boolean isDup() {
-        return message.isDup();
+        return false;
     }
 
     @Override
     public boolean isRetain() {
-        return message.isRetain();
+        return false;
+    }
+
+    @Override
+    public boolean isWill() {
+        return true;
     }
 
     @Nonnull
     @Override
     public ByteBuf getPayload() {
-        return message.payload().getByteBuf();
+        return Unpooled.copiedBuffer(will.getWillMessageBytes());
     }
 
     @Nonnull

@@ -6,15 +6,16 @@ import io.vertx.mqtt.MqttEndpoint;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.jetlinks.core.ProtocolSupport;
-import org.jetlinks.core.device.DeviceOperation;
+import org.jetlinks.core.device.DeviceOperator;
 import org.jetlinks.core.message.codec.EncodedMessage;
 import org.jetlinks.core.message.codec.MqttMessage;
 import org.jetlinks.core.message.codec.Transport;
-import org.jetlinks.gateway.session.DeviceSession;
+import org.jetlinks.core.server.session.DeviceSession;
+import reactor.core.publisher.Mono;
 
 import java.nio.charset.StandardCharsets;
-import java.util.function.Function;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * @author zhouhao
@@ -23,10 +24,11 @@ import java.util.function.Function;
 @Slf4j
 public class MqttDeviceSession implements DeviceSession {
 
+    @Getter
     private MqttEndpoint endpoint;
 
     @Getter
-    private Function<String, DeviceOperation> operationSupplier;
+    private DeviceOperator operator;
 
     private long connectTime = System.currentTimeMillis();
 
@@ -36,13 +38,15 @@ public class MqttDeviceSession implements DeviceSession {
 
     private int keepAliveTimeOut;
 
-    @Setter
-    private String deviceId;
-
     @Getter
     private String id;
 
-    public MqttDeviceSession(String id, MqttEndpoint endpoint, Function<String, DeviceOperation> operation) {
+    @Getter
+    private Transport transport;
+
+    private List<Runnable> closeListener = new CopyOnWriteArrayList<>();
+
+    public MqttDeviceSession(String id, Transport transport, MqttEndpoint endpoint, DeviceOperator operator) {
         endpoint.pingHandler(r -> {
             ping();
             if (!endpoint.isAutoKeepAlive()) {
@@ -51,19 +55,15 @@ public class MqttDeviceSession implements DeviceSession {
         });
         this.id = id;
         this.endpoint = endpoint;
-        this.operationSupplier = operation;
+        this.operator = operator;
+        this.transport = transport;
         //ping 超时时间
         keepAliveTimeOut = (endpoint.keepAliveTimeSeconds() + 5) * 1000;
     }
 
     @Override
-    public ProtocolSupport getProtocolSupport() {
-        return getOperation().getProtocol();
-    }
-
-    @Override
-    public DeviceOperation getOperation() {
-        return operationSupplier.apply(deviceId);
+    public DeviceOperator getOperator() {
+        return operator;
     }
 
     @Override
@@ -73,7 +73,7 @@ public class MqttDeviceSession implements DeviceSession {
 
     @Override
     public String getDeviceId() {
-        return deviceId == null ? endpoint.clientIdentifier() : deviceId;
+        return operator.getDeviceId();
     }
 
     @Override
@@ -89,27 +89,56 @@ public class MqttDeviceSession implements DeviceSession {
             }
         } catch (Exception ignore) {
 
+        }finally {
+            closeListener.forEach(Runnable::run);
         }
     }
 
     @Override
-    public Transport getTransport() {
-        return Transport.MQTT;
-    }
-
-    @Override
-    public void send(EncodedMessage encodedMessage) {
-        if (encodedMessage instanceof MqttMessage) {
-            MqttMessage message = ((MqttMessage) encodedMessage);
+    public Mono<Boolean> send(EncodedMessage encodedMessage) {
+        return Mono.create((sink) -> {
             ping();
-            Buffer buffer = Buffer.buffer(message.getByteBuf());
-            if (log.isDebugEnabled()) {
-                log.debug("发送消息到MQTT客户端[{}]=>[{}]:{}", message.getTopic(), getDeviceId(), buffer.toString(StandardCharsets.UTF_8));
+            if (encodedMessage instanceof MqttMessage) {
+                MqttMessage message = ((MqttMessage) encodedMessage);
+                Buffer buffer = Buffer.buffer(message.getPayload());
+                if (log.isDebugEnabled()) {
+                    log.debug("发送消息到MQTT客户端[{}]=>[{}]:{}", message.getTopic(), getDeviceId(), buffer.toString(StandardCharsets.UTF_8));
+                }
+                if (message.getMessageId() != -1) {
+                    endpoint.publish(message.getTopic(),
+                            buffer,
+                            MqttQoS.valueOf(message.getQosLevel()),
+                            message.isDup(),
+                            message.isRetain(),
+                            message.getMessageId(),
+                            integerAsyncResult -> {
+                                if (integerAsyncResult.succeeded()) {
+                                    sink.success(true);
+                                } else {
+                                    sink.error(integerAsyncResult.cause());
+                                }
+                            });
+                } else {
+                    endpoint.publish(message.getTopic(),
+                            buffer,
+                            MqttQoS.valueOf(message.getQosLevel()),
+                            message.isDup(),
+                            message.isRetain(),
+                            integerAsyncResult -> {
+                                if (integerAsyncResult.succeeded()) {
+                                    sink.success(true);
+                                } else {
+                                    sink.error(integerAsyncResult.cause());
+                                }
+                            });
+                }
+
+                return;
+            } else {
+                log.error("不支持发送消息{}到MQTT:", encodedMessage);
             }
-            endpoint.publish(message.getTopic(), buffer, MqttQoS.valueOf(message.getQosLevel()), message.isDup(), message.isRetain());
-        } else {
-            log.error("不支持发送消息{}到MQTT:", encodedMessage);
-        }
+            sink.success(false);
+        });
     }
 
     @Override
@@ -132,8 +161,14 @@ public class MqttDeviceSession implements DeviceSession {
         return connected && !isKeepAliveTimeOut;
     }
 
+
+    @Override
+    public void onClose(Runnable call) {
+        closeListener.add(call);
+    }
+
     @Override
     public String toString() {
-        return "MQTT Client[" + getDeviceId() + "]";
+        return "MQTT Session[" + getDeviceId() + "]";
     }
 }
