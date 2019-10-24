@@ -14,7 +14,6 @@ import org.jetlinks.core.device.AuthenticationResponse;
 import org.jetlinks.core.device.DeviceRegistry;
 import org.jetlinks.core.device.MqttAuthenticationRequest;
 import org.jetlinks.core.message.codec.*;
-import org.jetlinks.core.server.ClientMessageHandler;
 import org.jetlinks.core.server.GatewayServer;
 import org.jetlinks.core.server.monitor.GatewayServerMonitor;
 import org.jetlinks.core.server.mqtt.AckType;
@@ -24,6 +23,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.EmitterProcessor;
 import reactor.core.publisher.Mono;
+import org.jetlinks.supports.server.ClientMessageHandler;
 
 import java.time.Duration;
 import java.util.Objects;
@@ -55,7 +55,6 @@ public class MqttServer extends AbstractVerticle implements GatewayServer {
     @Getter
     @Setter
     private ProtocolSupports protocolSupports;
-
 
     @Getter
     @Setter
@@ -107,7 +106,7 @@ public class MqttServer extends AbstractVerticle implements GatewayServer {
                                 port,
                                 deviceSessionManager.getMaximumSession(getTransport()));
                     } else {
-                        logger.error("MQTT 服务启动失败!", result.cause());
+                        logger.error("MQTT start failed!", result.cause());
                     }
                 });
 
@@ -171,7 +170,7 @@ public class MqttServer extends AbstractVerticle implements GatewayServer {
         return Mono.defer(() -> {
             if (deviceSessionManager.isOutOfMaximumSessionLimit(getTransport())) {
                 //当前连接超过了最大连接数
-                logger.warn("拒绝客户端连接[{}],已超过最大连接数限制:[{}]!",
+                logger.warn("reject mqtt connection[{}],out of maximum session limits:[{}]!",
                         endpoint.clientIdentifier(),
                         deviceSessionManager.getMaximumSession(getTransport()));
 
@@ -201,11 +200,12 @@ public class MqttServer extends AbstractVerticle implements GatewayServer {
                     })
                     .switchIfEmpty(Mono.create((sink) -> {
 
-                        serverContext.doUnknownMqttClientConnection(new VertxMqttClientConnection(endpoint, deviceId -> doAccept(deviceId, endpoint)
-                                .doOnNext(sink::success)
-                                .doOnError(sink::error)
-                                .doOnCancel(sink::success)
-                                .thenReturn(true)));
+                        serverContext
+                                .doUnknownMqttClientConnection(new VertxMqttClientConnection(endpoint, deviceId -> doAccept(deviceId, endpoint)
+                                        .doOnNext(sink::success)
+                                        .doOnError(sink::error)
+                                        .doOnCancel(sink::success)
+                                        .thenReturn(true)));
                     }));
         });
 
@@ -224,47 +224,38 @@ public class MqttServer extends AbstractVerticle implements GatewayServer {
     protected Mono<MqttDeviceSession> accept(MqttEndpoint endpoint, MqttDeviceSession session) {
         return Mono.defer(() -> {
             String deviceId = session.getDeviceId();
-            try {
-                //注册
-                deviceSessionManager.register(session);
-                logger.debug("MQTT client client [{}]建立连接", deviceId);
-                endpoint
-                        //SUBSCRIBE
-                        .subscribeHandler(subscribe -> serverContext.doSubscribe(session, subscribe))
-                        //UNSUBSCRIBE
-                        .unsubscribeHandler(unsubscribe -> serverContext.doUnSubscribe(session, unsubscribe))
-                        //QoS 1 PUBACK
-                        .publishAcknowledgeHandler(messageId -> serverContext.doAck(session, AckType.PUBACK, messageId))
-                        //QoS 2  PUBREC
-                        .publishReceivedHandler(messageId -> serverContext.doAck(session, AckType.PUBREC, messageId))
-                        //QoS 2  PUBREL
-                        .publishReleaseHandler(messageId -> serverContext.doAck(session, AckType.PUBREC, messageId))
-                        //QoS 2  PUBCOMP
-                        .publishCompletionHandler(messageId -> serverContext.doAck(session, AckType.PUBCOMP, messageId))
-                        //断开连接 DISCONNECT
-                        .disconnectHandler(v -> {
-                            logger.debug("MQTT客户端[{}]断开连接", deviceId);
-                            doCloseEndpoint(endpoint, deviceId);
-                        })
-                        //接收客户端推送的消息
-                        .publishHandler(message -> handleMqttPublishMessage(session, endpoint, message))
-                        .exceptionHandler(e -> {
-                            logger.debug("MQTT客户端[{}]连接错误", deviceId, e);
-                            doCloseEndpoint(endpoint, deviceId);
-                        })
-                        .closeHandler(v -> doCloseEndpoint(endpoint, deviceId))
-                        .accept(false);
+            //注册
+            deviceSessionManager.register(session);
+            endpoint
+                    //SUBSCRIBE
+                    .subscribeHandler(subscribe -> serverContext.doSubscribe(session, subscribe))
+                    //UNSUBSCRIBE
+                    .unsubscribeHandler(unsubscribe -> serverContext.doUnSubscribe(session, unsubscribe))
+                    //QoS 1 PUBACK
+                    .publishAcknowledgeHandler(messageId -> serverContext.doAck(session, AckType.PUBACK, messageId))
+                    //QoS 2  PUBREC
+                    .publishReceivedHandler(messageId -> serverContext.doAck(session, AckType.PUBREC, messageId))
+                    //QoS 2  PUBREL
+                    .publishReleaseHandler(messageId -> serverContext.doAck(session, AckType.PUBREC, messageId))
+                    //QoS 2  PUBCOMP
+                    .publishCompletionHandler(messageId -> serverContext.doAck(session, AckType.PUBCOMP, messageId))
+                    //断开连接 DISCONNECT
+                    .disconnectHandler(v -> {
+                        logger.debug("MQTT client[{}] disconnect", deviceId);
+                        doCloseEndpoint(endpoint, deviceId);
+                    })
+                    //接收客户端推送的消息
+                    .publishHandler(message -> handleMqttPublishMessage(session, endpoint, message))
+                    .exceptionHandler(e -> {
+                        logger.debug("MQTT client [{}] error", deviceId, e);
+                        doCloseEndpoint(endpoint, deviceId);
+                    })
+                    .closeHandler(v -> doCloseEndpoint(endpoint, deviceId))
+                    .accept(false);
 
-                serverContext.doAccept(session);
-
-                MqttWill will = endpoint.will();
-                if (will != null) {
-                    handleWillMessage(session, endpoint, will);
-                }
-
-            } catch (Exception e) {
-                logger.error("建立MQTT连接失败,client:{}", deviceId, e);
-                throw e;
+            MqttWill will = endpoint.will();
+            if (will != null && will.getWillMessageBytes() != null) {
+                handleWillMessage(session, endpoint, will);
             }
             return Mono.just(session);
         }).doOnError(err -> {

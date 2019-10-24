@@ -157,7 +157,6 @@
             <groupId>org.jetlinks</groupId>
             <artifactId>jetlinks-supports</artifactId>
             <version>${project.version}</version>
-            <scope>test</scope>
         </dependency>
 
         <dependency>

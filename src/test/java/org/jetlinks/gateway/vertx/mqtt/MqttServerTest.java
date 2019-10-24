@@ -3,9 +3,9 @@ package org.jetlinks.gateway.vertx.mqtt;
 import io.vertx.core.Vertx;
 import io.vertx.mqtt.MqttServerOptions;
 import lombok.SneakyThrows;
-import org.jetlinks.core.device.DeviceMessageHandler;
+import org.jetlinks.core.device.DeviceOperationBroker;
 import org.jetlinks.core.device.DeviceRegistry;
-import org.jetlinks.core.device.StandaloneDeviceMessageHandler;
+import org.jetlinks.core.device.StandaloneDeviceMessageBroker;
 import org.jetlinks.core.server.monitor.GatewayServerMetrics;
 import org.jetlinks.core.server.monitor.GatewayServerMonitor;
 import org.jetlinks.supports.DefaultProtocolSupports;
@@ -19,7 +19,7 @@ public class MqttServerTest {
 
     private DeviceRegistry registry;
 
-    private DeviceMessageHandler deviceMessageHandler = new StandaloneDeviceMessageHandler();
+    private DeviceOperationBroker deviceMessageBroker = new StandaloneDeviceMessageBroker();
 
     @Before
     public void init() {
@@ -30,7 +30,7 @@ public class MqttServerTest {
         mqttServer.setDeviceSessionManager(sessionManager);
         DefaultProtocolSupports protocolSupports = new DefaultProtocolSupports();
         mqttServer.setProtocolSupports(protocolSupports);
-        mqttServer.setRegistry(registry = new TestDeviceRegistry(protocolSupports, deviceMessageHandler));
+        mqttServer.setRegistry(registry = new TestDeviceRegistry(protocolSupports, deviceMessageBroker));
         mqttServer.setGatewayServerMonitor(
                 new GatewayServerMonitor() {
                     @Override

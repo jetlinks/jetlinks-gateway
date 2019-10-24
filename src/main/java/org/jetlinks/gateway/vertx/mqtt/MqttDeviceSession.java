@@ -4,7 +4,6 @@ import io.netty.handler.codec.mqtt.MqttQoS;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.mqtt.MqttEndpoint;
 import lombok.Getter;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.jetlinks.core.device.DeviceOperator;
 import org.jetlinks.core.message.codec.EncodedMessage;
@@ -102,7 +101,7 @@ public class MqttDeviceSession implements DeviceSession {
                 MqttMessage message = ((MqttMessage) encodedMessage);
                 Buffer buffer = Buffer.buffer(message.getPayload());
                 if (log.isDebugEnabled()) {
-                    log.debug("发送消息到MQTT客户端[{}]=>[{}]:{}", message.getTopic(), getDeviceId(), buffer.toString(StandardCharsets.UTF_8));
+                    log.debug("send mqtt message [{}]=>[{}]:{}", message.getTopic(), getDeviceId(), buffer.toString(StandardCharsets.UTF_8));
                 }
                 if (message.getMessageId() != -1) {
                     endpoint.publish(message.getTopic(),
