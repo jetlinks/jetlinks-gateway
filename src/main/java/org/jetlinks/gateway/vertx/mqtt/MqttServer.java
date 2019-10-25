@@ -13,17 +13,20 @@ import org.jetlinks.core.ProtocolSupports;
 import org.jetlinks.core.device.AuthenticationResponse;
 import org.jetlinks.core.device.DeviceRegistry;
 import org.jetlinks.core.device.MqttAuthenticationRequest;
-import org.jetlinks.core.message.codec.*;
+import org.jetlinks.core.message.codec.DefaultTransport;
+import org.jetlinks.core.message.codec.FromDeviceMessageContext;
+import org.jetlinks.core.message.codec.MqttMessage;
+import org.jetlinks.core.message.codec.Transport;
 import org.jetlinks.core.server.GatewayServer;
 import org.jetlinks.core.server.monitor.GatewayServerMonitor;
 import org.jetlinks.core.server.mqtt.AckType;
 import org.jetlinks.core.server.session.DeviceSession;
 import org.jetlinks.core.server.session.DeviceSessionManager;
+import org.jetlinks.supports.server.ClientMessageHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import reactor.core.publisher.EmitterProcessor;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import org.jetlinks.supports.server.ClientMessageHandler;
 
 import java.time.Duration;
 import java.util.Objects;
@@ -70,7 +73,7 @@ public class MqttServer extends AbstractVerticle implements GatewayServer {
 
     @Getter
     @Setter
-    private int maxBufferSize = 10240;
+    private int maxBufferSize = 1024;
 
     @Getter
     @Setter
@@ -83,8 +86,6 @@ public class MqttServer extends AbstractVerticle implements GatewayServer {
         return mqttServerOptions.isSsl() ? DefaultTransport.MQTTS : DefaultTransport.MQTT;
     }
 
-    private EmitterProcessor<MqttEndpoint> endpointEmitterProcessor = EmitterProcessor.create();
-
     @Override
     public void start() {
         Objects.requireNonNull(deviceSessionManager);
@@ -96,21 +97,22 @@ public class MqttServer extends AbstractVerticle implements GatewayServer {
             serverContext = new VertxMqttGatewayServerContext();
             serverContext.setTransport(getTransport());
         }
-        io.vertx.mqtt.MqttServer mqttServer = io.vertx.mqtt.MqttServer.create(vertx, mqttServerOptions);
-        mqttServer.endpointHandler(endpointEmitterProcessor::onNext)
-                .exceptionHandler(err -> logger.error(err.getMessage(), err))
-                .listen(result -> {
-                    if (result.succeeded()) {
-                        int port = result.result().actualPort();
-                        logger.info("MQTT started on port :{},maximum session:{}",
-                                port,
-                                deviceSessionManager.getMaximumSession(getTransport()));
-                    } else {
-                        logger.error("MQTT start failed!", result.cause());
-                    }
-                });
-
-        endpointEmitterProcessor
+        Flux
+                .<MqttEndpoint>create(sink -> {
+                    io.vertx.mqtt.MqttServer mqttServer = io.vertx.mqtt.MqttServer.create(vertx, mqttServerOptions);
+                    mqttServer.endpointHandler(sink::next)
+                            .exceptionHandler(err -> logger.error(err.getMessage(), err))
+                            .listen(result -> {
+                                if (result.succeeded()) {
+                                    int port = result.result().actualPort();
+                                    logger.info("MQTT started on port :{},maximum session:{}",
+                                            port,
+                                            deviceSessionManager.getMaximumSession(getTransport()));
+                                } else {
+                                    logger.error("MQTT start failed!", result.cause());
+                                }
+                            });
+                })
                 .doOnNext(e -> {
                     accepting.incrementAndGet();
                     gatewayServerMonitor.metrics().newConnection(getTransport().getId());
@@ -131,6 +133,8 @@ public class MqttServer extends AbstractVerticle implements GatewayServer {
                     gatewayServerMonitor.metrics().acceptedConnection(getTransport().getId());
                 })
                 .subscribe(session -> serverContext.doAccept(session));
+
+
     }
 
 
