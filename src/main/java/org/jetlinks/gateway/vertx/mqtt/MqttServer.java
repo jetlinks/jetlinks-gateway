@@ -114,7 +114,10 @@ public class MqttServer extends AbstractVerticle implements GatewayServer {
                             });
                 })
                 .doOnNext(e -> {
-                    accepting.incrementAndGet();
+                    int waiting = accepting.getAndIncrement();
+                    if (waiting > 0) {
+                        logger.debug("waiting accept mqtt connections {}", waiting);
+                    }
                     gatewayServerMonitor.metrics().newConnection(getTransport().getId());
                 })
                 .onBackpressureBuffer(
@@ -128,7 +131,7 @@ public class MqttServer extends AbstractVerticle implements GatewayServer {
                         }
                 )
                 .flatMap(this::doConnect)
-                .doFinally(s -> {
+                .doOnNext(s -> {
                     accepting.decrementAndGet();
                     gatewayServerMonitor.metrics().acceptedConnection(getTransport().getId());
                 })
@@ -145,7 +148,7 @@ public class MqttServer extends AbstractVerticle implements GatewayServer {
     protected Mono<AuthenticationResponse> doAuth(MqttEndpoint endpoint) {
         if (endpoint.auth() == null) {
             endpoint.reject(MqttConnectReturnCode.CONNECTION_REFUSED_NOT_AUTHORIZED);
-            return Mono.just(AuthenticationResponse.error(401, "未提供认证信息"));
+            return Mono.just(AuthenticationResponse.error(401, "not authorized"));
         }
         String clientId = getClientId(endpoint);
         String userName = endpoint.auth().getUsername();
@@ -216,7 +219,7 @@ public class MqttServer extends AbstractVerticle implements GatewayServer {
     }
 
     protected void doCloseEndpoint(MqttEndpoint client, String deviceId) {
-        logger.debug("关闭客户端[{}]MQTT连接", deviceId);
+        logger.debug("close [{}] mqtt connection", deviceId);
         DeviceSession old = deviceSessionManager.unregister(deviceId);
         if (old == null) {
             if (client.isConnected()) {
@@ -245,13 +248,13 @@ public class MqttServer extends AbstractVerticle implements GatewayServer {
                     .publishCompletionHandler(messageId -> serverContext.doAck(session, AckType.PUBCOMP, messageId))
                     //断开连接 DISCONNECT
                     .disconnectHandler(v -> {
-                        logger.debug("MQTT client[{}] disconnect", deviceId);
+                        logger.debug("mqtt client[{}] disconnect", deviceId);
                         doCloseEndpoint(endpoint, deviceId);
                     })
                     //接收客户端推送的消息
                     .publishHandler(message -> handleMqttPublishMessage(session, endpoint, message))
                     .exceptionHandler(e -> {
-                        logger.debug("MQTT client [{}] error", deviceId, e);
+                        logger.debug("mqtt client [{}] error", deviceId, e);
                         doCloseEndpoint(endpoint, deviceId);
                     })
                     .closeHandler(v -> doCloseEndpoint(endpoint, deviceId))

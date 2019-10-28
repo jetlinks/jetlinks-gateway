@@ -88,7 +88,7 @@ public class MqttDeviceSession implements DeviceSession {
             }
         } catch (Exception ignore) {
 
-        }finally {
+        } finally {
             closeListener.forEach(Runnable::run);
         }
     }
@@ -103,7 +103,7 @@ public class MqttDeviceSession implements DeviceSession {
                 if (log.isDebugEnabled()) {
                     log.debug("send mqtt message [{}]=>[{}]:{}", message.getTopic(), getDeviceId(), buffer.toString(StandardCharsets.UTF_8));
                 }
-                if (message.getMessageId() != -1) {
+                if (message.getMessageId() > 0) {
                     endpoint.publish(message.getTopic(),
                             buffer,
                             MqttQoS.valueOf(message.getQosLevel()),

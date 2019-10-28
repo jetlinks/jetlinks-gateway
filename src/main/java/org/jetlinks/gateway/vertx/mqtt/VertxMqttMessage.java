@@ -51,4 +51,9 @@ public class VertxMqttMessage implements MqttMessage {
     public String getDeviceId() {
         return deviceId;
     }
+
+    @Override
+    public String toString() {
+        return deviceId + " => " + getTopic() + " | messageId " + getMessageId() + " | QoS " + getQosLevel() + " | dup " + isDup() + " | retain " + isRetain() + " | will " + isWill();
+    }
 }

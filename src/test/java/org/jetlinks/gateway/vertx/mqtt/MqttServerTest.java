@@ -8,7 +8,7 @@ import org.jetlinks.core.device.DeviceRegistry;
 import org.jetlinks.core.device.StandaloneDeviceMessageBroker;
 import org.jetlinks.core.server.monitor.GatewayServerMetrics;
 import org.jetlinks.core.server.monitor.GatewayServerMonitor;
-import org.jetlinks.supports.DefaultProtocolSupports;
+import org.jetlinks.supports.protocol.StaticProtocolSupports;
 import org.jetlinks.supports.server.monitor.MicrometerGatewayServerMetrics;
 import org.jetlinks.supports.server.session.DefaultDeviceSessionManager;
 import org.junit.Before;
@@ -28,7 +28,7 @@ public class MqttServerTest {
         DefaultDeviceSessionManager sessionManager = new DefaultDeviceSessionManager();
         mqttServer.setMessageHandler((session, message) -> Mono.just(true));
         mqttServer.setDeviceSessionManager(sessionManager);
-        DefaultProtocolSupports protocolSupports = new DefaultProtocolSupports();
+        StaticProtocolSupports protocolSupports = new StaticProtocolSupports();
         mqttServer.setProtocolSupports(protocolSupports);
         mqttServer.setRegistry(registry = new TestDeviceRegistry(protocolSupports, deviceMessageBroker));
         mqttServer.setGatewayServerMonitor(
