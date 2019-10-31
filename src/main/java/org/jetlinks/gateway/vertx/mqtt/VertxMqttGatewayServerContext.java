@@ -6,7 +6,6 @@ import io.vertx.mqtt.messages.MqttUnsubscribeMessage;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.jetlinks.core.message.Message;
 import org.jetlinks.core.message.codec.Transport;
 import org.jetlinks.core.server.mqtt.*;
 import org.jetlinks.core.server.session.DeviceSession;
@@ -31,6 +30,14 @@ public class VertxMqttGatewayServerContext implements MqttGatewayServerContext {
     private final EmitterProcessor<MqttUnsubscription> unsubscriptionEmitterProcessor = EmitterProcessor.create(false);
 
     private final EmitterProcessor<DeviceSession> sessionEmitterProcessor = EmitterProcessor.create(false);
+
+    public void shutdown(){
+//        ackProcessor.dispose();
+//        unknownConnection.dispose();
+//        subscriptionEmitterProcessor.dispose();
+//        unsubscriptionEmitterProcessor.dispose();
+//        sessionEmitterProcessor.dispose();
+    }
 
     void doUnknownMqttClientConnection(MqttClientConnection endpoint) {
         if (!unknownConnection.hasDownstreams()) {
