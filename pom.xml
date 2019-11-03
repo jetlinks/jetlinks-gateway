@@ -143,12 +143,6 @@
 
         <dependency>
             <groupId>org.jetlinks</groupId>
-            <artifactId>lettuce-plus-core</artifactId>
-            <optional>true</optional>
-        </dependency>
-
-        <dependency>
-            <groupId>org.jetlinks</groupId>
             <artifactId>jetlinks-core</artifactId>
             <version>${project.version}</version>
         </dependency>
@@ -171,18 +165,6 @@
             <scope>test</scope>
         </dependency>
 
-
-        <dependency>
-            <groupId>com.h2database</groupId>
-            <artifactId>h2</artifactId>
-            <scope>test</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>com.alibaba</groupId>
-            <artifactId>druid</artifactId>
-            <scope>test</scope>
-        </dependency>
 
         <dependency>
             <groupId>org.slf4j</groupId>
