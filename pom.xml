@@ -180,6 +180,13 @@
             <optional>true</optional>
         </dependency>
 
+        <!-- https://mvnrepository.com/artifact/org.eclipse.californium/californium-core -->
+<!--        <dependency>-->
+<!--            <groupId>org.eclipse.californium</groupId>-->
+<!--            <artifactId>californium-core</artifactId>-->
+<!--            <version>1.0.7</version>-->
+<!--            <optional>true</optional>-->
+<!--        </dependency>-->
 
     </dependencies>
 

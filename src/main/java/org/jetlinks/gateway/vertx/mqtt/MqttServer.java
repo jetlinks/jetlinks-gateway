@@ -83,7 +83,7 @@ public class MqttServer extends AbstractVerticle implements GatewayServer {
 
     @Override
     public Transport getTransport() {
-        return mqttServerOptions.isSsl() ? DefaultTransport.MQTTS : DefaultTransport.MQTT;
+        return mqttServerOptions.isSsl() ? DefaultTransport.MQTT_SSL : DefaultTransport.MQTT;
     }
 
     @Override
@@ -278,7 +278,7 @@ public class MqttServer extends AbstractVerticle implements GatewayServer {
             logger.debug("receive device[{}] message=>{}", session.getId(), message);
         }
         messageHandler
-                .handleMessage(session, FromDeviceMessageContext.of(session, message))
+                .handleMessage(session.getOperator(), getTransport(), FromDeviceMessageContext.of(session, message))
                 .switchIfEmpty(Mono.error(() -> new UnsupportedOperationException("cannot decode message")))
                 .doOnError(error ->
                         logger.error("handle device[{}] message error :\n{}",
