@@ -83,7 +83,7 @@ public class MqttServer extends AbstractVerticle implements GatewayServer {
 
     @Override
     public Transport getTransport() {
-        return mqttServerOptions.isSsl() ? DefaultTransport.MQTT_SSL : DefaultTransport.MQTT;
+        return mqttServerOptions.isSsl() ? DefaultTransport.MQTT_TLS : DefaultTransport.MQTT;
     }
 
     @Override

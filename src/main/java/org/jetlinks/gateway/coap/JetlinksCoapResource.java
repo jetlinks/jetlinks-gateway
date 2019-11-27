@@ -11,7 +11,7 @@ import org.eclipse.californium.core.server.resources.CoapExchange;
 import org.eclipse.californium.core.server.resources.Resource;
 import org.jetlinks.core.device.DeviceOperator;
 import org.jetlinks.core.device.DeviceRegistry;
-import org.jetlinks.core.message.codec.CoapMessage;
+import org.jetlinks.core.message.codec.CoapExchangeMessage;
 import org.jetlinks.core.message.codec.EncodedMessage;
 import org.jetlinks.core.message.codec.MessageDecodeContext;
 import org.jetlinks.core.message.codec.Transport;
@@ -78,7 +78,7 @@ public class JetlinksCoapResource extends CoapResource {
                         .handleMessage(device, getTransport(), new MessageDecodeContext() {
                             @Override
                             public EncodedMessage getMessage() {
-                                return new CoapMessage(device.getDeviceId(), exchange);
+                                return new CoapExchangeMessage(device.getDeviceId(), exchange);
                             }
 
                             @Override
