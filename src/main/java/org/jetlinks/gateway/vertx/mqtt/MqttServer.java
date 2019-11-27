@@ -297,10 +297,10 @@ public class MqttServer extends AbstractVerticle implements GatewayServer {
     }
 
     protected void handleWillMessage(DeviceSession session, MqttEndpoint endpoint, MqttWill message) {
-        handleMqttMessage(session, endpoint, new VertxMqttWillMessage(session.getDeviceId(), message));
+        handleMqttMessage(session, endpoint, new VertxMqttWillMessage(endpoint.clientIdentifier(), message));
     }
 
     protected void handleMqttPublishMessage(DeviceSession session, MqttEndpoint endpoint, MqttPublishMessage message) {
-        handleMqttMessage(session, endpoint, new VertxMqttMessage(session.getDeviceId(), message));
+        handleMqttMessage(session, endpoint, new VertxMqttMessage(endpoint.clientIdentifier(), message));
     }
 }

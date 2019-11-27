@@ -10,7 +10,7 @@ import javax.annotation.Nonnull;
 @AllArgsConstructor
 public class VertxMqttMessage implements MqttMessage {
 
-    private String deviceId;
+    private String clientId;
 
     private MqttPublishMessage message;
 
@@ -46,14 +46,13 @@ public class VertxMqttMessage implements MqttMessage {
         return message.payload().getByteBuf();
     }
 
-    @Nonnull
     @Override
-    public String getDeviceId() {
-        return deviceId;
+    public String getClientId() {
+        return clientId;
     }
 
     @Override
     public String toString() {
-        return deviceId + " => " + getTopic() + " | messageId " + getMessageId() + " | QoS " + getQosLevel() + " | dup " + isDup() + " | retain " + isRetain() + " | will " + isWill();
+        return clientId + " => " + getTopic() + " | messageId " + getMessageId() + " | QoS " + getQosLevel() + " | dup " + isDup() + " | retain " + isRetain() + " | will " + isWill();
     }
 }

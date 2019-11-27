@@ -26,7 +26,7 @@ public class MqttServerTest {
         MqttServer mqttServer = new MqttServer();
 
         DefaultDeviceSessionManager sessionManager = new DefaultDeviceSessionManager();
-        mqttServer.setMessageHandler((session, message) -> Mono.just(true));
+        mqttServer.setMessageHandler((session, message,context) -> Mono.just(true));
         mqttServer.setDeviceSessionManager(sessionManager);
         StaticProtocolSupports protocolSupports = new StaticProtocolSupports();
         mqttServer.setProtocolSupports(protocolSupports);

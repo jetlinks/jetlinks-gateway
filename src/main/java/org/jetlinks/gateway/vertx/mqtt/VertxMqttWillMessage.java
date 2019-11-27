@@ -11,7 +11,7 @@ import javax.annotation.Nonnull;
 @AllArgsConstructor
 public class VertxMqttWillMessage implements MqttMessage {
 
-    private String deviceId;
+    private String clientId;
 
     private MqttWill will;
 
@@ -54,7 +54,7 @@ public class VertxMqttWillMessage implements MqttMessage {
 
     @Nonnull
     @Override
-    public String getDeviceId() {
-        return deviceId;
+    public String getClientId() {
+        return clientId;
     }
 }

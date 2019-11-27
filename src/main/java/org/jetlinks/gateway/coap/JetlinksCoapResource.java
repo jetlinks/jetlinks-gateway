@@ -78,7 +78,7 @@ public class JetlinksCoapResource extends CoapResource {
                         .handleMessage(device, getTransport(), new MessageDecodeContext() {
                             @Override
                             public EncodedMessage getMessage() {
-                                return new CoapExchangeMessage(device.getDeviceId(), exchange);
+                                return new CoapExchangeMessage(exchange);
                             }
 
                             @Override
