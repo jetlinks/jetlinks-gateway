@@ -9,6 +9,7 @@ import io.vertx.mqtt.MqttWill;
 import io.vertx.mqtt.messages.MqttPublishMessage;
 import lombok.Getter;
 import lombok.Setter;
+import org.hswebframework.web.logger.ReactiveLogger;
 import org.jetlinks.core.ProtocolSupports;
 import org.jetlinks.core.device.AuthenticationResponse;
 import org.jetlinks.core.device.DeviceRegistry;
@@ -97,22 +98,21 @@ public class MqttServer extends AbstractVerticle implements GatewayServer {
             serverContext = new VertxMqttGatewayServerContext();
             serverContext.setTransport(getTransport());
         }
-        Flux
-                .<MqttEndpoint>create(sink -> {
-                    io.vertx.mqtt.MqttServer mqttServer = io.vertx.mqtt.MqttServer.create(vertx, mqttServerOptions);
-                    mqttServer.endpointHandler(sink::next)
-                            .exceptionHandler(err -> logger.error(err.getMessage(), err))
-                            .listen(result -> {
-                                if (result.succeeded()) {
-                                    int port = result.result().actualPort();
-                                    logger.info("MQTT started on port :{},maximum session:{}",
-                                            port,
-                                            deviceSessionManager.getMaximumSession(getTransport()));
-                                } else {
-                                    logger.error("MQTT start failed!", result.cause());
-                                }
-                            });
-                })
+        Flux.<MqttEndpoint>create(sink ->
+                io.vertx.mqtt.MqttServer
+                        .create(vertx, mqttServerOptions)
+                        .endpointHandler(sink::next)
+                        .exceptionHandler(err -> logger.error(err.getMessage(), err))
+                        .listen(result -> {
+                            if (result.succeeded()) {
+                                int port = result.result().actualPort();
+                                logger.info("MQTT started on port :{},maximum session:{}",
+                                        port,
+                                        deviceSessionManager.getMaximumSession(getTransport()));
+                            } else {
+                                logger.error("MQTT start failed!", result.cause());
+                            }
+                        }))
                 .doOnNext(e -> {
                     int waiting = accepting.getAndIncrement();
                     if (waiting > 0) {
@@ -165,22 +165,24 @@ public class MqttServer extends AbstractVerticle implements GatewayServer {
         return registry
                 .getDevice(deviceId)
                 .switchIfEmpty(Mono.error(() -> new NullPointerException("device not found")))
+                .flatMap(operator -> accept(endpoint, new MqttDeviceSession(deviceId, getTransport(), endpoint, operator)))
                 .doOnError(err -> {
-                    logger.error("get device operator error", err);
+                    logger.warn("accept mqtt [{}] connection error", endpoint.clientIdentifier(), err);
                     endpoint.reject(MqttConnectReturnCode.CONNECTION_REFUSED_SERVER_UNAVAILABLE);
-                })
-                .flatMap(operator -> accept(endpoint, new MqttDeviceSession(deviceId, getTransport(), endpoint, operator)));
+                });
+
 
     }
 
     private Mono<MqttDeviceSession> doConnect(MqttEndpoint endpoint) {
-        return Mono.defer(() -> {
+        return Mono.deferWithContext((ctx) -> {
             if (deviceSessionManager.isOutOfMaximumSessionLimit(getTransport())) {
-                //当前连接超过了最大连接数
-                logger.warn("reject mqtt connection[{}],out of maximum session limits:[{}]!",
-                        endpoint.clientIdentifier(),
-                        deviceSessionManager.getMaximumSession(getTransport()));
-
+                ReactiveLogger.log(ctx, mdc -> {
+                    //当前连接超过了最大连接数
+                    logger.warn("reject mqtt connection[{}],out of maximum session limits:[{}]!",
+                            endpoint.clientIdentifier(),
+                            deviceSessionManager.getMaximumSession(getTransport()));
+                });
                 endpoint.reject(MqttConnectReturnCode.CONNECTION_REFUSED_SERVER_UNAVAILABLE);
                 return Mono.empty();
             }
@@ -188,32 +190,37 @@ public class MqttServer extends AbstractVerticle implements GatewayServer {
             String clientId = getClientId(endpoint);
             //进行认证
             return doAuth(endpoint)
-                    .doOnError(error -> {
+                    .doOnEach(ReactiveLogger.onError(error -> {
                         logger.warn("device[{}] auth error", clientId, error);
                         endpoint.reject(MqttConnectReturnCode.CONNECTION_REFUSED_SERVER_UNAVAILABLE);
-                    })
+                    }))
+                    .doOnEach(ReactiveLogger.onNext(response -> {
+                        if (response.isSuccess()) {
+                            logger.info("device [{}] auth error:{}", clientId, response);
+                        } else if (401 == response.getCode()) {
+                            logger.info("device [{}] auth error:{}", clientId, response.getMessage());
+                        } else {
+                            logger.warn("device [{}] auth error:{}", clientId, response);
+                        }
+                    }))
                     .flatMap((response) -> {
                         if (response.isSuccess()) {
                             String deviceId = Optional.ofNullable(response.getDeviceId()).orElse(clientId);
                             return doAccept(deviceId, endpoint);
                         } else if (401 == response.getCode()) {
-                            logger.info("device [{}] auth error:{}", clientId, response.getMessage());
                             endpoint.reject(MqttConnectReturnCode.CONNECTION_REFUSED_BAD_USER_NAME_OR_PASSWORD);
                         } else {
-                            logger.warn("device [{}] auth error:{}", clientId, response);
                             endpoint.reject(MqttConnectReturnCode.CONNECTION_REFUSED_SERVER_UNAVAILABLE);
                         }
                         return Mono.empty();
                     })
-                    .switchIfEmpty(Mono.create((sink) -> {
-
-                        serverContext
-                                .doUnknownMqttClientConnection(new VertxMqttClientConnection(endpoint, deviceId -> doAccept(deviceId, endpoint)
-                                        .doOnNext(sink::success)
-                                        .doOnError(sink::error)
-                                        .doOnCancel(sink::success)
-                                        .thenReturn(true)));
-                    }));
+                    .switchIfEmpty(Mono.create((sink) -> serverContext
+                            .doUnknownMqttClientConnection(new VertxMqttClientConnection(endpoint, deviceId -> doAccept(deviceId, endpoint)
+                                    .doOnNext(sink::success)
+                                    .doOnError(sink::error)
+                                    .doOnCancel(sink::success)
+                                    .thenReturn(true)))))
+                    .subscriberContext(ReactiveLogger.start("mqttClientId", clientId));
         });
 
     }
