@@ -1,7 +1,6 @@
 package org.jetlinks.gateway.vertx.mqtt;
 
 import io.vertx.mqtt.MqttEndpoint;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.jetlinks.core.server.mqtt.AckType;
@@ -52,16 +51,13 @@ public class VertxMqttClientAck implements MqttClientAck {
         MqttEndpoint endpoint = session.getEndpoint();
         switch (ackType) {
             case PUBACK:
-                endpoint.publishAcknowledge(messageId);
+            case PUBCOMP:
                 return;
             case PUBREL:
-                endpoint.publishRelease(messageId);
-                return;
-            case PUBCOMP:
                 endpoint.publishComplete(messageId);
                 return;
             case PUBREC:
-                endpoint.publishReceived(messageId);
+                endpoint.publishRelease(messageId);
                 return;
         }
         acked = true;

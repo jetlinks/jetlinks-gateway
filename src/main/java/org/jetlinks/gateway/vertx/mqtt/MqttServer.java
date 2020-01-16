@@ -196,9 +196,9 @@ public class MqttServer extends AbstractVerticle implements GatewayServer {
                     }))
                     .doOnEach(ReactiveLogger.onNext(response -> {
                         if (response.isSuccess()) {
-                            logger.info("device [{}] auth error:{}", clientId, response);
+                            logger.debug("device [{}] auth success:{}", clientId, response);
                         } else if (401 == response.getCode()) {
-                            logger.info("device [{}] auth error:{}", clientId, response.getMessage());
+                            logger.warn("device [{}] auth error:{}", clientId, response.getMessage());
                         } else {
                             logger.warn("device [{}] auth error:{}", clientId, response);
                         }
